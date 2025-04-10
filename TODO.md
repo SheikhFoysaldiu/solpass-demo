@@ -1,0 +1,1 @@
+- [] initialize the event in blockchain. (from team perspective)

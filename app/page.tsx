@@ -1,9 +1,16 @@
-import Link from "next/link"
-import { Calendar, MapPin, Ticket } from "lucide-react"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { formatDate } from "@/lib/utils"
-
+import Link from "next/link";
+import { Calendar, MapPin, Ticket } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { formatDate } from "@/lib/utils";
+import InitializeEventInChain from "@/components/events/initialize";
+import { WalletButton } from "@/components/providers/solana";
 
 const events = [
   {
@@ -20,11 +27,12 @@ const events = [
     venue: "Sports Complex",
     imageUrl: "/placeholder.svg?height=200&width=400",
   },
-]
+];
 
 export default function Home() {
   return (
     <main className="container mx-auto py-8 px-4">
+      <WalletButton />
       <h1 className="text-3xl font-bold mb-8">Upcoming Events</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -53,6 +61,7 @@ export default function Home() {
               </div>
             </CardContent>
             <CardFooter>
+              <InitializeEventInChain />
               <Link href={`/events/${event.id}`} className="w-full">
                 <Button className="w-full">
                   <Ticket className="mr-2 h-4 w-4" />
@@ -64,5 +73,5 @@ export default function Home() {
         ))}
       </div>
     </main>
-  )
+  );
 }
