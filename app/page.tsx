@@ -1,77 +1,139 @@
-import Link from "next/link";
-import { Calendar, MapPin, Ticket } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { formatDate } from "@/lib/utils";
-import InitializeEventInChain from "@/components/events/initialize";
-import { WalletButton } from "@/components/providers/solana";
+"use client";
 
-const events = [
-  {
-    id: "0B004D43F86C478F",
-    title: "Concert at Stadium Arena",
-    date: "2021-11-26 03:00:00.0",
-    venue: "Stadium Arena",
-    imageUrl: "/placeholder.svg?height=200&width=400",
-  },
-  {
-    id: "1C115E54G97D589G",
-    title: "Sports Championship Finals",
-    date: "2021-12-15 19:30:00.0",
-    venue: "Sports Complex",
-    imageUrl: "/placeholder.svg?height=200&width=400",
-  },
-];
+import { useState, useEffect } from "react";
+import { EventCard } from "@/components/event-card";
+import { CreateEventForm } from "@/components/create-event-form";
+import { Button } from "@/components/ui/button";
+import { PlusCircle, ShoppingCart, Loader2 } from "lucide-react";
+import { fetchEvents } from "@/lib/api-client";
+import { CartSheet } from "@/components/cart-sheet";
+import { useCart } from "@/hooks/use-cart";
+import { useToast } from "@/hooks/use-toast";
+import { EventType, generateDummyEvent } from "@/lib/mock-data";
+import Link from "next/link";
 
 export default function Home() {
+  const [events, setEvents] = useState<EventType[]>([]);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const { cart } = useCart();
+  const { toast } = useToast();
+  const [cartSheetOpen, setCartSheetOpen] = useState(false);
+  const totalItems = cart.reduce((total, item) => total + item.quantity, 0);
+
+  useEffect(() => {
+    // Load events from our API
+    const fetchEventsData = async () => {
+      try {
+        setLoading(true);
+        const eventsData = await fetchEvents();
+
+        // Make sure eventsData is an array and filter out any invalid events
+        const validEvents = Array.isArray(eventsData)
+          ? eventsData.filter(
+              (event) => event && typeof event === "object" && "id" in event
+            )
+          : [];
+
+        if (validEvents.length > 0) {
+          setEvents(validEvents);
+        } else {
+          // If no events, create a dummy event
+          const dummyEvent = generateDummyEvent();
+          setEvents([dummyEvent]);
+        }
+      } catch (error) {
+        console.error("Error fetching events:", error);
+        // If API fails, create a dummy event
+        const dummyEvent = generateDummyEvent();
+        setEvents([dummyEvent]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEventsData();
+  }, []);
+
+  const handleCreateEvent = (newEvent: EventType) => {
+    // Add the new event to the events array
+    setEvents((prevEvents) => [...prevEvents, newEvent]);
+    setShowCreateForm(false);
+
+    // Show success toast
+    toast({
+      title: "Event created",
+      description: `${newEvent.name} has been created successfully.`,
+    });
+  };
+
   return (
     <main className="container mx-auto py-8 px-4">
-      <WalletButton />
-      <h1 className="text-3xl font-bold mb-8">Upcoming Events</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">Event Ticketing</h1>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <CartSheet open={cartSheetOpen} onOpenChange={setCartSheetOpen}>
+              <Button
+                variant="outline"
+                size="icon"
+                className="relative"
+                onClick={() => setCartSheetOpen(true)}
+              >
+                <ShoppingCart className="h-5 w-5" />
+                {totalItems > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {totalItems}
+                  </span>
+                )}
+              </Button>
+            </CartSheet>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {events.map((event) => (
-          <Card key={event.id} className="overflow-hidden">
-            <div className="relative h-48 w-full">
-              <img
-                src={event.imageUrl || "/placeholder.svg"}
-                alt={event.title}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <CardHeader>
-              <CardTitle>{event.title}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex items-center text-sm text-muted-foreground">
-                  <Calendar className="mr-2 h-4 w-4" />
-                  <span>{formatDate(event.date)}</span>
-                </div>
-                <div className="flex items-center text-sm text-muted-foreground">
-                  <MapPin className="mr-2 h-4 w-4" />
-                  <span>{event.venue}</span>
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <InitializeEventInChain />
-              <Link href={`/events/${event.id}`} className="w-full">
-                <Button className="w-full">
-                  <Ticket className="mr-2 h-4 w-4" />
-                  View Tickets
-                </Button>
+            <Button variant="outline" asChild>
+              <Link href="/cart">
+                <ShoppingCart className="h-4 w-4 mr-2" />
+                Cart ({totalItems})
               </Link>
-            </CardFooter>
-          </Card>
-        ))}
+            </Button>
+          </div>
+
+          <Button
+            onClick={() => setShowCreateForm(!showCreateForm)}
+            className="flex items-center gap-2"
+          >
+            <PlusCircle size={18} />
+            {showCreateForm ? "Cancel" : "Create Event"}
+          </Button>
+        </div>
       </div>
+
+      {showCreateForm && (
+        <div className="mb-8">
+          <CreateEventForm onSubmit={handleCreateEvent} />
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-12 space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p>Loading events...</p>
+        </div>
+      ) : events.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-lg text-gray-500 mb-4">No events found</p>
+          <Button onClick={() => setShowCreateForm(true)}>
+            Create Your First Event
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {events.map((event) =>
+            event && event.id ? (
+              <EventCard key={event.id} event={event} />
+            ) : null
+          )}
+        </div>
+      )}
     </main>
   );
 }
