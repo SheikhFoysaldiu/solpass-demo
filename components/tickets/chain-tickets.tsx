@@ -171,7 +171,7 @@ export default function ChainTickets({
       ) : (
         <div className="text-center py-8 border rounded-lg bg-slate-50">
           <p className="text-gray-500">
-            {isLoading ? "Loading tickets..." : "No tickets found"}
+            {isLoading ? "Loading tickets..." : "No onchain tickets found"}
           </p>
         </div>
       )}

@@ -1,7 +1,6 @@
 "use client";
 import type React from "react";
 
-import { SolanaProvider } from "@/components/providers/solana";
 import { Toaster } from "@/components/toaster";
 import { CartProvider } from "@/hooks/use-cart";
 import { Inter } from "next/font/google";
@@ -16,6 +15,7 @@ import {
 // Create a client
 const queryClient = new QueryClient();
 import "./globals.css";
+import { SolanaProvider } from "@/components/providers/solana-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
