@@ -1,15 +1,11 @@
-'use client'
 import type React from "react"
 
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { CartProvider } from "@/hooks/use-cart"
-import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/toaster"
 
 const inter = Inter({ subsets: ["latin"] })
-
-
 
 export default function RootLayout({
   children,
@@ -19,12 +15,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-
         <CartProvider>
           {children}
           <Toaster />
         </CartProvider>
-
       </body>
     </html>
   )
@@ -32,3 +26,7 @@ export default function RootLayout({
 
 
 import './globals.css'
+
+export const metadata = {
+      generator: 'v0.dev'
+    };

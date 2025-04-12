@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Slider } from "@/components/ui/slider"
 import { createEvent } from "@/lib/api-client"
-import { Trash2, Plus, Loader2 } from "lucide-react"
+import { Trash2, Plus, Loader2, Percent } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/hooks/use-toast"
 
@@ -33,6 +34,7 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
     description: "",
     ticketLimit: 10,
     image: "/placeholder.svg?height=400&width=600",
+    royaltyPercentage: 5, // Default royalty percentage
   })
 
   const [ticketTypes, setTicketTypes] = useState<TicketType[]>([
@@ -42,6 +44,10 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleRoyaltyChange = (value: number[]) => {
+    setFormData((prev) => ({ ...prev, royaltyPercentage: value[0] }))
   }
 
   const handleTicketTypeChange = (index: number, field: keyof TicketType, value: string | number) => {
@@ -108,12 +114,16 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
         offsale: new Date(new Date().setMonth(new Date().getMonth() + 3)).toISOString(),
         ticketLimit: Number(formData.ticketLimit),
         ticketTypes: ticketTypes,
+        royaltyPercentage: formData.royaltyPercentage,
       }
+
+      console.log("Creating event:", newEvent)
 
       // Try to create the event via API
       let createdEvent
       try {
         createdEvent = await createEvent(newEvent)
+        console.log("Event created successfully:", createdEvent)
       } catch (apiError) {
         console.error("API error creating event:", apiError)
         // If API fails, use the original event object
@@ -128,6 +138,7 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
         description: "",
         ticketLimit: 10,
         image: "/placeholder.svg?height=400&width=600",
+        royaltyPercentage: 5,
       })
       setTicketTypes([{ name: "General Admission", price: 50, fees: 10, available: 100 }])
 
@@ -223,6 +234,28 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
               onChange={handleChange}
               required
             />
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="royaltyPercentage" className="flex items-center">
+                <Percent className="h-4 w-4 mr-2" />
+                Resale Royalty Percentage
+              </Label>
+              <span className="font-medium">{formData.royaltyPercentage}%</span>
+            </div>
+            <Slider
+              id="royaltyPercentage"
+              min={0}
+              max={20}
+              step={1}
+              value={[formData.royaltyPercentage]}
+              onValueChange={handleRoyaltyChange}
+            />
+            <p className="text-xs text-muted-foreground">
+              This percentage will be charged as a royalty fee on all resale transactions and paid to the event
+              organizer.
+            </p>
           </div>
 
           <Separator />

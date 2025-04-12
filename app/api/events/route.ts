@@ -1,25 +1,15 @@
 import { NextResponse } from "next/server"
-import { mockEventData, generateDummyEvent } from "@/lib/mock-data"
-
-// In-memory storage for events - export it so it can be accessed from other routes
-export const events = [
-  // Ensure the mock event has all required properties
-  {
-    ...mockEventData,
-    id: mockEventData.id || "0B004D43F86C478F",
-    name: mockEventData.name || "Concert in the Park",
-    date: mockEventData.date || "2021-11-26 03:00:00.0",
-    venue: mockEventData.venue || "Central Stadium",
-  },
-]
-
-// Generate a few more dummy events
-for (let i = 0; i < 2; i++) {
-  events.push(generateDummyEvent())
-}
+import { getStoredEvents, addEvent } from "@/lib/event-storage"
 
 export async function GET() {
-  return NextResponse.json({ events })
+  try {
+    // Get events from localStorage
+    const events = getStoredEvents()
+    return NextResponse.json({ events })
+  } catch (error) {
+    console.error("Error fetching events:", error)
+    return NextResponse.json({ error: "Failed to fetch events" }, { status: 500 })
+  }
 }
 
 export async function POST(request: Request) {
@@ -60,10 +50,13 @@ export async function POST(request: Request) {
       newEvent.image = `/placeholder.svg?height=400&width=600&text=${encodeURIComponent(newEvent.name)}`
     }
 
-    // Add the new event to our in-memory storage
-    events.push(newEvent)
+    // Add the new event to localStorage
+    const savedEvent = addEvent(newEvent)
 
-    return NextResponse.json({ event: newEvent }, { status: 201 })
+    // Log the event for debugging
+    console.log("Created new event:", savedEvent)
+
+    return NextResponse.json({ event: savedEvent }, { status: 201 })
   } catch (error) {
     console.error("Error creating event:", error)
     return NextResponse.json({ error: "Failed to create event" }, { status: 400 })

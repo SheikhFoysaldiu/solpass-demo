@@ -10,20 +10,23 @@ export default function CheckoutSuccessPage() {
   const router = useRouter()
 
   useEffect(() => {
-    // In a real app, we would get the order number from the API response
-    // For now, we'll generate a random order number
-    const orderNumber =
-      localStorage.getItem("orderId") ||
-      Math.floor(Math.random() * 1000000)
-        .toString()
-        .padStart(6, "0")
+    // Only access localStorage in the browser
+    if (typeof window !== "undefined") {
+      // In a real app, we would get the order number from the API response
+      // For now, we'll generate a random order number
+      const orderNumber =
+        localStorage.getItem("orderId") ||
+        Math.floor(Math.random() * 1000000)
+          .toString()
+          .padStart(6, "0")
 
-    if (!localStorage.getItem("orderId")) {
-      localStorage.setItem("orderId", orderNumber)
+      if (!localStorage.getItem("orderId")) {
+        localStorage.setItem("orderId", orderNumber)
+      }
+
+      // Clear the cart and cart ID
+      localStorage.removeItem("cartId")
     }
-
-    // Clear the cart and cart ID
-    localStorage.removeItem("cartId")
   }, [])
 
   return (
@@ -37,7 +40,9 @@ export default function CheckoutSuccessPage() {
           <p>Thank you for your purchase. Your order has been confirmed.</p>
           <div className="bg-gray-50 p-4 rounded-lg">
             <p className="text-sm text-gray-500">Order Number</p>
-            <p className="font-mono font-medium">#{localStorage.getItem("orderId") || "000000"}</p>
+            <p className="font-mono font-medium">
+              #{typeof window !== "undefined" ? localStorage.getItem("orderId") || "000000" : "000000"}
+            </p>
           </div>
           <p className="text-sm text-gray-500">A confirmation email has been sent to your email address.</p>
         </CardContent>

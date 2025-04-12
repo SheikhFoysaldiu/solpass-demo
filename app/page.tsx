@@ -4,13 +4,14 @@ import { useState, useEffect } from "react"
 import { EventCard } from "@/components/event-card"
 import { CreateEventForm } from "@/components/create-event-form"
 import { Button } from "@/components/ui/button"
-import { PlusCircle, ShoppingCart, Loader2 } from "lucide-react"
+import { PlusCircle, ShoppingCart, Loader2, Ticket } from "lucide-react"
 import { fetchEvents } from "@/lib/api-client"
 import { CartSheet } from "@/components/cart-sheet"
 import { useCart } from "@/hooks/use-cart"
 import { useToast } from "@/hooks/use-toast"
 import { generateDummyEvent } from "@/lib/mock-data"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 export default function Home() {
   const [events, setEvents] = useState<Event[]>([])
@@ -20,6 +21,7 @@ export default function Home() {
   const { toast } = useToast()
   const [cartSheetOpen, setCartSheetOpen] = useState(false)
   const totalItems = cart.reduce((total, item) => total + item.quantity, 0)
+  const router = useRouter()
 
   useEffect(() => {
     // Load events from our API
@@ -63,6 +65,9 @@ export default function Home() {
       title: "Event created",
       description: `${newEvent.name} has been created successfully.`,
     })
+
+    // Navigate to the new event page
+    router.push(`/events/${newEvent.id}`)
   }
 
   return (
@@ -86,6 +91,13 @@ export default function Home() {
               <Link href="/cart">
                 <ShoppingCart className="h-4 w-4 mr-2" />
                 Cart ({totalItems})
+              </Link>
+            </Button>
+
+            <Button variant="outline" asChild>
+              <Link href="/my-tickets">
+                <Ticket className="h-4 w-4 mr-2" />
+                My Tickets
               </Link>
             </Button>
           </div>
