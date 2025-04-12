@@ -1,3 +1,4 @@
+import { RoyaltyFormValues } from "@/components/event-card";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -34,3 +35,26 @@ export function formatDate(dateString: string): string {
     return "Invalid Date";
   }
 }
+
+// Function to create a royalties string
+export const createRoyaltiesString = (royalties: RoyaltyFormValues): string => {
+  return `Ticketmaster: ${royalties.ticketmaster}%, Team: ${royalties.team}%, Solpass: ${royalties.solpass}%`;
+};
+
+// Function to extract royalties values from a string
+export const extractRoyaltiesFromString = (
+  royaltiesString: string
+): RoyaltyFormValues => {
+  const regex = /Ticketmaster: (\d+)%.*Team: (\d+)%.*Solpass: (\d+)%/;
+  const match = royaltiesString.match(regex);
+
+  if (!match) {
+    throw new Error("Invalid royalties string format");
+  }
+
+  return {
+    ticketmaster: parseInt(match[1], 10),
+    team: parseInt(match[2], 10),
+    solpass: parseInt(match[3], 10),
+  };
+};

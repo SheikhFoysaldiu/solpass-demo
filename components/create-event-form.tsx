@@ -1,7 +1,6 @@
 "use client";
 
-import type React from "react";
-import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -9,15 +8,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Slider } from "@/components/ui/slider";
-import { createEvent } from "@/lib/api-client";
-import { Trash2, Plus, Loader2, Percent } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { Slider } from "@/components/ui/slider";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { createEvent } from "@/lib/api-client";
+import { EventType } from "@/lib/mock-data";
+import { Loader2, Percent, Plus, Trash2 } from "lucide-react";
+import type React from "react";
+import { useState } from "react";
 
 interface CreateEventFormProps {
   onSubmit: (event: EventType) => void;

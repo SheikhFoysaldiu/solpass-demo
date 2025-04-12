@@ -1,110 +1,110 @@
-import type { Event } from "@/types"
-import { generateDummyEvent } from "@/lib/mock-data"
+import type { Event } from "@/types";
+import { generateDummyEvent } from "@/lib/mock-data";
 
 // Check if we're in the browser environment
-const isBrowser = typeof window !== "undefined"
+const isBrowser = typeof window !== "undefined";
 
 // Helper functions to manage events in localStorage
 export const getStoredEvents = (): Event[] => {
-  if (!isBrowser) return [] // Return empty array if not in browser
+  if (!isBrowser) return []; // Return empty array if not in browser
 
   try {
-    const storedEvents = localStorage.getItem("events")
+    const storedEvents = localStorage.getItem("events");
     if (storedEvents) {
-      const events = JSON.parse(storedEvents)
+      const events = JSON.parse(storedEvents);
       if (Array.isArray(events) && events.length > 0) {
-        return events
+        return events;
       }
     }
 
     // If no events in storage, create initial events
-    const initialEvents = [generateDummyEvent(), generateDummyEvent()]
+    const initialEvents = [generateDummyEvent(1), generateDummyEvent(2)];
     if (isBrowser) {
-      localStorage.setItem("events", JSON.stringify(initialEvents))
+      localStorage.setItem("events", JSON.stringify(initialEvents));
     }
-    return initialEvents
+    return initialEvents;
   } catch (error) {
-    console.error("Error getting stored events:", error)
-    return [generateDummyEvent()]
+    console.error("Error getting stored events:", error);
+    return [generateDummyEvent(100)];
   }
-}
+};
 
 export const getEventById = (id: string): Event | null => {
-  if (!isBrowser) return null
+  if (!isBrowser) return null;
 
   try {
-    const events = getStoredEvents()
-    return events.find((event) => event.id === id) || null
+    const events = getStoredEvents();
+    return events.find((event) => event.id === id) || null;
   } catch (error) {
-    console.error(`Error getting event with id ${id}:`, error)
-    return null
+    console.error(`Error getting event with id ${id}:`, error);
+    return null;
   }
-}
+};
 
 export const addEvent = (event: Event): Event => {
-  if (!isBrowser) return event
+  if (!isBrowser) return event;
 
   try {
-    const events = getStoredEvents()
+    const events = getStoredEvents();
 
     // Ensure the event has an ID
     if (!event.id) {
-      event.id = Math.random().toString(36).substring(2, 15).toUpperCase()
+      event.id = Math.random().toString(36).substring(2, 15).toUpperCase();
     }
 
     // Add the event to the array
-    events.push(event)
+    events.push(event);
 
     // Save the updated array
     if (isBrowser) {
-      localStorage.setItem("events", JSON.stringify(events))
+      localStorage.setItem("events", JSON.stringify(events));
     }
 
-    return event
+    return event;
   } catch (error) {
-    console.error("Error adding event:", error)
-    return event
+    console.error("Error adding event:", error);
+    return event;
   }
-}
+};
 
 export const updateEvent = (event: Event): Event => {
-  if (!isBrowser) return event
+  if (!isBrowser) return event;
 
   try {
-    const events = getStoredEvents()
-    const index = events.findIndex((e) => e.id === event.id)
+    const events = getStoredEvents();
+    const index = events.findIndex((e) => e.id === event.id);
 
     if (index !== -1) {
-      events[index] = event
+      events[index] = event;
       if (isBrowser) {
-        localStorage.setItem("events", JSON.stringify(events))
+        localStorage.setItem("events", JSON.stringify(events));
       }
     }
 
-    return event
+    return event;
   } catch (error) {
-    console.error(`Error updating event with id ${event.id}:`, error)
-    return event
+    console.error(`Error updating event with id ${event.id}:`, error);
+    return event;
   }
-}
+};
 
 export const deleteEvent = (id: string): boolean => {
-  if (!isBrowser) return false
+  if (!isBrowser) return false;
 
   try {
-    const events = getStoredEvents()
-    const filteredEvents = events.filter((event) => event.id !== id)
+    const events = getStoredEvents();
+    const filteredEvents = events.filter((event) => event.id !== id);
 
     if (filteredEvents.length !== events.length) {
       if (isBrowser) {
-        localStorage.setItem("events", JSON.stringify(filteredEvents))
+        localStorage.setItem("events", JSON.stringify(filteredEvents));
       }
-      return true
+      return true;
     }
 
-    return false
+    return false;
   } catch (error) {
-    console.error(`Error deleting event with id ${id}:`, error)
-    return false
+    console.error(`Error deleting event with id ${id}:`, error);
+    return false;
   }
-}
+};

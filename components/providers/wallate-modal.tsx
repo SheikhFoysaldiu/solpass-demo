@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,18 +10,85 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { SolanaProvider } from "./solana-provider";
+import { useWalletStore } from "@/store/useWalletStore";
 import { WalletButton } from "./wallate-button";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
+import { Keypair } from "@solana/web3.js";
+import { toast } from "sonner";
+import { Loader2, Key } from "lucide-react";
 
 export function WalletModal() {
   const [open, setOpen] = useState(false);
+  const [privateKeyInput, setPrivateKeyInput] = useState("");
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [error, setError] = useState("");
+  const { setPrivateKey, walletType } = useWalletStore();
+  const { connected } = useWallet();
+
+  // Close the dialog when wallet gets connected
+  useEffect(() => {
+    if (connected) {
+      setOpen(false);
+    }
+  }, [connected]);
+
+  const connectWithPrivateKey = () => {
+    if (!privateKeyInput) {
+      setError("Please enter a private key");
+      return;
+    }
+
+    setIsConnecting(true);
+    setError("");
+
+    try {
+      // Validate the private key by attempting to create a keypair
+      const secretKey = bs58.decode(privateKeyInput);
+      const keypair = Keypair.fromSecretKey(secretKey);
+
+      // Store in Zustand
+      setPrivateKey(privateKeyInput);
+
+      toast.success("Connected with private key successfully", {
+        description: `Address: ${keypair.publicKey
+          .toString()
+          .slice(0, 8)}...${keypair.publicKey.toString().slice(-8)}`,
+      });
+
+      // Close the dialog
+      setOpen(false);
+    } catch (err) {
+      console.error("Invalid private key:", err);
+      setError("Invalid private key format. Please check and try again.");
+      toast.error("Invalid private key");
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const buttonLabel = connected
+    ? "Wallet Connected"
+    : walletType === "privateKey"
+    ? "Private Key Connected"
+    : "Connect Wallet";
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white font-medium py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2">
+        <Button
+          className={`${
+            connected || walletType === "privateKey"
+              ? "bg-green-600 hover:bg-green-700"
+              : "bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+          } 
+            text-white font-medium py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2`}
+          disabled={connected || walletType === "privateKey"}
+        >
           <WalletIcon />
-          Connect Wallet
+          {buttonLabel}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
@@ -31,9 +98,47 @@ export function WalletModal() {
             Connect your Solana wallet to continue
           </DialogDescription>
         </DialogHeader>
-        <div className="flex justify-center py-4">
+
+        <div className="flex flex-col gap-6 py-4">
           <div className="wallet-button-wrapper">
             <WalletButton />
+          </div>
+
+          <div className="relative flex items-center">
+            <div className="flex-grow border-t border-gray-300"></div>
+            <span className="mx-4 flex-shrink text-gray-400 text-sm">or</span>
+            <div className="flex-grow border-t border-gray-300"></div>
+          </div>
+
+          <div className="space-y-4">
+            <Label htmlFor="privateKeyInput">Connect with Private Key</Label>
+            <Input
+              id="privateKeyInput"
+              type="password"
+              placeholder="Enter your private key"
+              value={privateKeyInput}
+              onChange={(e) => setPrivateKeyInput(e.target.value)}
+            />
+
+            {error && <div className="text-sm text-red-500">{error}</div>}
+
+            <Button
+              className="w-full"
+              onClick={connectWithPrivateKey}
+              disabled={isConnecting}
+            >
+              {isConnecting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Connecting...
+                </>
+              ) : (
+                <>
+                  <Key className="mr-2 h-4 w-4" />
+                  Connect with Key
+                </>
+              )}
+            </Button>
           </div>
         </div>
       </DialogContent>

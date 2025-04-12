@@ -8,7 +8,8 @@ import idl from "@/lib/idl.json";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Button } from "../ui/button";
-import { useProgram } from "@/lib/hooks/useProgram";
+import { usePrivateKeyAnchorWallet, useProgram } from "@/lib/hooks/useProgram";
+import { useWalletStore } from "@/store/useWalletStore";
 
 export type ChainEvent = {
   publicKey: PublicKey;
@@ -29,27 +30,52 @@ export type ChainEvent = {
 export function useChainEvents() {
   const wallet = useAnchorWallet();
   const program = useProgram();
+  const privateKeyWallet = usePrivateKeyAnchorWallet();
+  const { privateKey } = useWalletStore();
 
   const fetchChainEvents = async () => {
-    if (!wallet || !program) return [];
-    const events = await program.account.eventAccount.all([
-      {
-        memcmp: {
-          offset: 8,
-          bytes: wallet.publicKey.toBase58(),
+    // No wallet and no program, return empty
+    if (!program) return [];
+
+    // If we have a regular wallet, use it
+    if (wallet) {
+      const events = await program.account.eventAccount.all([
+        {
+          memcmp: {
+            offset: 8,
+            bytes: wallet.publicKey.toBase58(),
+          },
         },
-      },
-    ]);
+      ]);
+      console.log("Using regular wallet to fetch events:", events);
+      return events as ChainEvent[];
+    }
+    // If we have a private key wallet, use it as fallback
+    else if (privateKeyWallet && privateKeyWallet.wallet) {
+      const events = await program.account.eventAccount.all([
+        {
+          memcmp: {
+            offset: 8,
+            bytes: privateKeyWallet.wallet.publicKey.toBase58(),
+          },
+        },
+      ]);
+      console.log("Using private key wallet to fetch events:", events);
+      return events as ChainEvent[];
+    }
 
-    console.log(">>", events);
-
-    return events as ChainEvent[];
+    // No wallet available
+    return [];
   };
 
   return useQuery({
-    queryKey: ["chainEvents", wallet?.publicKey?.toBase58()],
+    queryKey: [
+      "chainEvents",
+      wallet?.publicKey?.toBase58() ||
+        privateKeyWallet?.wallet?.publicKey?.toBase58(),
+    ],
     queryFn: fetchChainEvents,
-    enabled: !!wallet,
+    enabled: !!(program && (wallet || (privateKeyWallet && privateKey))),
   });
 }
 

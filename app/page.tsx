@@ -1,242 +1,365 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { EventCard } from "@/components/event-card";
-import { CreateEventForm } from "@/components/create-event-form";
+import { useRouter } from "next/navigation";
+import { Keypair } from "@solana/web3.js";
+import {
+  clusterApiUrl,
+  Connection,
+  LAMPORTS_PER_SOL,
+  PublicKey,
+} from "@solana/web3.js";
+import { bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
+import { useAnchorWallet } from "@solana/wallet-adapter-react";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, ShoppingCart, Loader2, Ticket } from "lucide-react";
-import { fetchEvents } from "@/lib/api-client";
-import { CartSheet } from "@/components/cart-sheet";
-import { useCart } from "@/hooks/use-cart";
-import { useToast } from "@/hooks/use-toast";
-import { EventType, generateDummyEvent } from "@/lib/mock-data";
-import Link from "next/link";
-import { WalletButton } from "@/components/providers/solana";
-import ChainEvents, { useChainEvents } from "@/components/events/chain-events";
-import { AnchorProvider, BN, Program, setProvider } from "@coral-xyz/anchor";
-import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
-import { IDLType } from "@/lib/idl";
-import idl from "@/lib/idl.json";
-import { programId } from "@/lib/contants";
-import { PublicKey, SystemProgram } from "@solana/web3.js";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useProgram } from "@/lib/hooks/useProgram";
-import { WalletModal } from "@/components/providers/wallate-modal";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import {
+  Loader2,
+  Plus,
+  Key,
+  Wallet,
+  CreditCard,
+  ArrowRight,
+} from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
+import { useWalletStore } from "@/store/useWalletStore";
 
-export default function Home() {
-  const [events, setEvents] = useState<EventType[]>([]);
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const { cart } = useCart();
-  const { toast } = useToast();
-  const [cartSheetOpen, setCartSheetOpen] = useState(false);
-  const totalItems = cart.reduce((total, item) => total + item.quantity, 0);
-
-  const { data: chainEvents = [], isLoading: isLoadingChainEvents } =
-    useChainEvents();
-  const { connection } = useConnection();
-  const wallet = useAnchorWallet();
-  const queryClient = useQueryClient();
-
-  const program = useProgram();
-
-  const chainEventsByIdMap = new Map(
-    chainEvents.map((event) => [event.account.eventId, event])
+export default function HomePage() {
+  const router = useRouter();
+  const anchorWallet = useAnchorWallet();
+  const { setPrivateKey: setWalletPrivateKey } = useWalletStore();
+  const [name, setName] = useState("");
+  const [privateKey, setPrivateKey] = useState("");
+  const [generatedKeypair, setGeneratedKeypair] = useState<Keypair | null>(
+    null
   );
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isFunding, setIsFunding] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [balance, setBalance] = useState(0);
+  const [error, setError] = useState("");
 
-  const initializeEventMutation = useMutation({
-    mutationFn: async (event: EventType) => {
-      if (!wallet || !program) throw new Error("Wallet not connected");
+  // If wallet is already connected, redirect to events page
+  useEffect(() => {
+    if (anchorWallet) {
+      router.push("/events");
+    }
+  }, [anchorWallet, router]);
 
-      const [eventPda] = PublicKey.findProgramAddressSync(
-        [
-          Buffer.from("EVENT_STATE"),
-          wallet.publicKey.toBuffer(),
-          Buffer.from(event.id),
-        ],
-        program.programId
+  const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
+
+  // Generate new keypair
+  const generateKeypair = () => {
+    if (!name) {
+      setError("Please enter a name for your wallet");
+      return;
+    }
+
+    setIsGenerating(true);
+    setError("");
+
+    try {
+      // Generate a new keypair
+      const newKeypair = Keypair.generate();
+      setGeneratedKeypair(newKeypair);
+
+      // Set the private key for display
+      const privateKeyBase58 = bs58.encode(newKeypair.secretKey);
+      setPrivateKey(privateKeyBase58);
+
+      toast.success("New wallet generated successfully", {
+        description: "Remember to save your private key securely!",
+      });
+
+      // Get initial balance
+      checkBalance(newKeypair.publicKey);
+    } catch (err) {
+      console.error("Failed to generate keypair:", err);
+      setError("Failed to generate keypair");
+      toast.error("Failed to generate keypair");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Request airdrop
+  const requestAirdrop = async () => {
+    if (!generatedKeypair) {
+      setError("No keypair available. Generate one first.");
+      return;
+    }
+
+    setIsFunding(true);
+    setError("");
+
+    try {
+      const signature = await connection.requestAirdrop(
+        generatedKeypair.publicKey,
+        LAMPORTS_PER_SOL
       );
 
-      const eventDate = new Date(event.date).getTime() / 1000;
-      const ticketPriceLamports = Math.floor(100);
-
-      const tx = await program.methods
-        .createEvent(
-          event.id,
-          event.name,
-          event.description || "A littet description",
-          event.venue || "A veno",
-          new BN(eventDate),
-          new BN(event.ticketTypes.length),
-          new BN(ticketPriceLamports)
-        )
-        .accounts({
-          eventAccount: eventPda,
-          authority: wallet.publicKey,
-          systemProgram: SystemProgram.programId,
-        })
-        .rpc();
-
-      return tx;
-    },
-    onSuccess: (_, event) => {
-      toast({
-        title: "Event initialized on blockchain",
-        description: `${event.name} has been successfully initialized on the blockchain.`,
+      // Wait for confirmation
+      await connection.confirmTransaction(signature);
+      toast.success("Airdrop successful", {
+        description: "1 SOL has been added to your wallet",
       });
-      queryClient.invalidateQueries({ queryKey: ["chainEvents"] });
-    },
-    onError: (error) => {
-      console.error("Error initializing event on blockchain:", error);
-      toast({
-        title: "Initialization failed",
-        description:
-          "Failed to initialize event on blockchain. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
 
-  useEffect(() => {
-    const fetchEventsData = async () => {
-      try {
-        setLoading(true);
-        const eventsData = await fetchEvents();
-
-        const validEvents = Array.isArray(eventsData)
-          ? eventsData.filter(
-              (event) => event && typeof event === "object" && "id" in event
-            )
-          : [];
-
-        if (validEvents.length > 0) {
-          setEvents(validEvents);
-        } else {
-          const dummyEvent = generateDummyEvent(50);
-          setEvents([dummyEvent]);
-        }
-      } catch (error) {
-        console.error("Error fetching events:", error);
-        const dummyEvent = generateDummyEvent(50);
-        setEvents([dummyEvent]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchEventsData();
-  }, []);
-
-  const handleCreateEvent = (newEvent: EventType) => {
-    setEvents((prevEvents) => [...prevEvents, newEvent]);
-    setShowCreateForm(false);
-
-    toast({
-      title: "Event created",
-      description: `${newEvent.name} has been created successfully.`,
-    });
+      // Update balance after airdrop
+      await checkBalance(generatedKeypair.publicKey);
+    } catch (err) {
+      console.error("Failed to request airdrop:", err);
+      setError("Failed to request airdrop. Please try again later.");
+      toast.error("Airdrop failed");
+    } finally {
+      setIsFunding(false);
+    }
   };
 
-  const handleInitializeEvent = (event: EventType) => {
-    initializeEventMutation.mutate(event);
+  // Check account balance
+  const checkBalance = async (publicKey: PublicKey) => {
+    try {
+      const balance = await connection.getBalance(publicKey);
+      setBalance(balance / LAMPORTS_PER_SOL);
+    } catch (err) {
+      console.error("Failed to get balance:", err);
+    }
   };
 
-  const enhancedEvents = events.map((event) => {
-    const chainEvent = chainEventsByIdMap.get(event.id);
-    return {
-      ...event,
-      onChain: !!chainEvent,
-      chainData: chainEvent,
-    };
-  });
+  // Connect with private key
+  const connectWithPrivateKey = () => {
+    if (!privateKey) {
+      setError("Please enter a private key");
+      return;
+    }
+
+    setIsConnecting(true);
+    setError("");
+
+    try {
+      // Try to convert the private key to Uint8Array to validate it
+      const secretKey = bs58.decode(privateKey);
+      const keypair = Keypair.fromSecretKey(secretKey);
+
+      // Store in Zustand for persistent access across the app
+      setWalletPrivateKey(privateKey);
+
+      toast.success("Connected successfully", {
+        description: "Redirecting to events page...",
+      });
+
+      // Redirect to events page
+      setTimeout(() => {
+        router.push("/events");
+      }, 1500);
+    } catch (err) {
+      console.error("Invalid private key:", err);
+      setError("Invalid private key format. Please check and try again.");
+      toast.error("Invalid private key");
+    } finally {
+      setIsConnecting(false);
+    }
+  };
 
   return (
-    <main className="container mx-auto py-8 px-4">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Event Ticketing</h1>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <WalletModal />
-            <CartSheet open={cartSheetOpen} onOpenChange={setCartSheetOpen}>
-              <Button
-                variant="outline"
-                size="icon"
-                className="relative"
-                onClick={() => setCartSheetOpen(true)}
-              >
-                <ShoppingCart className="h-5 w-5" />
-                {totalItems > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    {totalItems}
-                  </span>
+    <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+      <div className="max-w-md w-full space-y-6">
+        {/* Logo and Title */}
+        <div className="text-center space-y-2">
+          <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-500 to-blue-600">
+            SolPass
+          </h1>
+          <p className="text-slate-600 dark:text-slate-400">
+            Your gateway to blockchain ticketing
+          </p>
+        </div>
+
+        <Tabs defaultValue="generate" className="w-full">
+          <TabsList className="grid grid-cols-2 mb-4">
+            <TabsTrigger value="generate">Generate New</TabsTrigger>
+            <TabsTrigger value="import">Import Existing</TabsTrigger>
+          </TabsList>
+
+          {/* Generate New Wallet Tab */}
+          <TabsContent value="generate">
+            <Card>
+              <CardHeader>
+                <CardTitle>Create New Wallet</CardTitle>
+                <CardDescription>
+                  Generate a new wallet for testing on Solana Devnet
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Your Name</Label>
+                  <Input
+                    id="name"
+                    placeholder="Enter your name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
+
+                {generatedKeypair && (
+                  <>
+                    <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-md">
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-slate-500">Public Key</span>
+                      </div>
+                      <p className="text-xs break-all font-mono p-2 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700">
+                        {generatedKeypair.publicKey.toString()}
+                      </p>
+                    </div>
+
+                    <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-md">
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-slate-500">
+                          Private Key (keep it safe!)
+                        </span>
+                      </div>
+                      <p className="text-xs break-all font-mono p-2 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700">
+                        {privateKey}
+                      </p>
+                    </div>
+
+                    <Alert>
+                      <CreditCard className="h-4 w-4" />
+                      <AlertTitle>Current Balance: {balance} SOL</AlertTitle>
+                      <AlertDescription>
+                        This is a devnet wallet for testing purposes only
+                      </AlertDescription>
+                    </Alert>
+                  </>
                 )}
-              </Button>
-            </CartSheet>
 
-            <Button variant="outline" asChild>
-              <Link href="/cart">
-                <ShoppingCart className="h-4 w-4 mr-2" />
-                Cart ({totalItems})
-              </Link>
-            </Button>
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+              <CardFooter className="flex flex-col gap-3">
+                {!generatedKeypair ? (
+                  <Button
+                    className="w-full"
+                    onClick={generateKeypair}
+                    disabled={isGenerating}
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Generate Keypair
+                      </>
+                    )}
+                  </Button>
+                ) : (
+                  <>
+                    <div className="flex gap-3 w-full">
+                      <Button
+                        className="flex-1"
+                        variant="outline"
+                        onClick={requestAirdrop}
+                        disabled={isFunding}
+                      >
+                        {isFunding ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Funding...
+                          </>
+                        ) : (
+                          <>
+                            <CreditCard className="mr-2 h-4 w-4" />
+                            Request Airdrop
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        className="flex-1"
+                        onClick={() => {
+                          // Store the private key in Zustand before navigating
+                          setWalletPrivateKey(privateKey);
+                          router.push("/events");
+                        }}
+                      >
+                        <ArrowRight className="mr-2 h-4 w-4" />
+                        Continue
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </CardFooter>
+            </Card>
+          </TabsContent>
 
-            <Button variant="outline" asChild>
-              <Link href="/my-tickets">
-                <Ticket className="h-4 w-4 mr-2" />
-                My Tickets
-              </Link>
-            </Button>
-          </div>
+          {/* Import Existing Wallet Tab */}
+          <TabsContent value="import">
+            <Card>
+              <CardHeader>
+                <CardTitle>Import Existing Wallet</CardTitle>
+                <CardDescription>
+                  Enter your private key to access your wallet
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="privateKey">Private Key</Label>
+                  <Input
+                    id="privateKey"
+                    type="password"
+                    placeholder="Enter your private key"
+                    value={privateKey}
+                    onChange={(e) => setPrivateKey(e.target.value)}
+                  />
+                </div>
 
-          <Button
-            onClick={() => setShowCreateForm(!showCreateForm)}
-            className="flex items-center gap-2"
-          >
-            <PlusCircle size={18} />
-            {showCreateForm ? "Cancel" : "Create Event"}
-          </Button>
-        </div>
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+              <CardFooter>
+                <Button
+                  className="w-full"
+                  onClick={connectWithPrivateKey}
+                  disabled={isConnecting}
+                >
+                  {isConnecting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <Key className="mr-2 h-4 w-4" />
+                      Connect Wallet
+                    </>
+                  )}
+                </Button>
+              </CardFooter>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        <p className="text-center text-sm text-slate-500">
+          SolPass • Blockchain Ticketing Platform
+        </p>
       </div>
-
-      {showCreateForm && (
-        <div className="mb-8">
-          <CreateEventForm onSubmit={handleCreateEvent} />
-        </div>
-      )}
-
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-12 space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p>Loading events...</p>
-        </div>
-      ) : events.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-lg text-gray-500 mb-4">No events found</p>
-          <Button onClick={() => setShowCreateForm(true)}>
-            Create Your First Event
-          </Button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {enhancedEvents.map((event) =>
-            event && event.id ? (
-              <EventCard
-                key={event.id}
-                event={event}
-                isOnChain={event.onChain}
-                chainData={event.chainData}
-                onInitialize={() => handleInitializeEvent(event)}
-                isInitializing={
-                  initializeEventMutation.isPending &&
-                  initializeEventMutation.variables?.id === event.id
-                }
-                walletConnected={!!wallet}
-              />
-            ) : null
-          )}
-        </div>
-      )}
-      <ChainEvents />
     </main>
   );
 }
