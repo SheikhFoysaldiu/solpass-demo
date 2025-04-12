@@ -25,10 +25,16 @@ import {
   ArrowLeft,
   Ticket,
   Loader2,
+  RefreshCw,
+  Percent,
 } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
 import { formatDate, formatCurrency } from "@/lib/utils";
-import { fetchEventById, fetchEventAvailability } from "@/lib/api-client";
+import {
+  fetchEventById,
+  fetchEventAvailability,
+  fetchResaleTickets,
+} from "@/lib/api-client";
 import { CartSheet } from "@/components/cart-sheet";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
@@ -58,6 +64,21 @@ export interface TicketData {
     row: string;
     seats: number[];
   }[];
+}
+
+interface ResaleTicket {
+  id: string;
+  ticketId: string;
+  eventId: string;
+  section: string;
+  row: string;
+  seat?: number;
+  price: number;
+  originalPrice: number;
+  royaltyPercentage: number;
+  royaltyFee: number;
+  serviceFee: number;
+  sellerId: string;
 }
 
 const defaultTicketData: TicketData = {
@@ -98,10 +119,10 @@ const defaultTicketData: TicketData = {
 export default function EventPage() {
   const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const chainEventKey = searchParams.get("chainEventKey");
   const { addToCart, cart } = useCart();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const chainEventKey = searchParams.get("chainEventKey");
   const [event, setEvent] = useState<any>(null);
   const [availability, setAvailability] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -112,9 +133,10 @@ export default function EventPage() {
   const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
   const [cartSheetOpen, setCartSheetOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Let's also add a loading indicator specifically for ticket selection to improve UX
-  // Add this state variable near the top with other state variables:
   const [isTicketLoading, setIsTicketLoading] = useState(false);
+  const [resaleTickets, setResaleTickets] = useState<ResaleTicket[]>([]);
+  const [selectedResaleTicket, setSelectedResaleTicket] =
+    useState<ResaleTicket | null>(null);
 
   useEffect(() => {
     const fetchEventDetails = async () => {
@@ -177,6 +199,21 @@ export default function EventPage() {
           createDefaultAvailability(eventData);
         }
 
+        // Fetch resale tickets
+        try {
+          const resaleData = await fetchResaleTickets(params.id as string);
+          if (Array.isArray(resaleData) && resaleData.length > 0) {
+            setResaleTickets(resaleData);
+          } else {
+            // Create dummy resale tickets
+            createDummyResaleTickets(eventData);
+          }
+        } catch (error) {
+          console.error("Error fetching resale tickets:", error);
+          // Create dummy resale tickets
+          createDummyResaleTickets(eventData);
+        }
+
         setLoading(false);
       } catch (error) {
         console.error("Error fetching event details:", error);
@@ -186,6 +223,7 @@ export default function EventPage() {
         dummyEvent.id = params.id as string;
         setEvent(dummyEvent);
         createDefaultAvailability(dummyEvent);
+        createDummyResaleTickets(dummyEvent);
 
         setLoading(false);
       }
@@ -304,10 +342,43 @@ export default function EventPage() {
       }
     };
 
+    // Helper function to create dummy resale tickets
+    const createDummyResaleTickets = (eventData: any) => {
+      // Create 0-1 dummy resale tickets
+      const royaltyPercentage = eventData.royaltyPercentage || 5;
+      const dummyResaleTickets: ResaleTicket[] = [];
+
+      // 50% chance of having a resale ticket
+      if (Math.random() > 0.5) {
+        const originalPrice = 50 + Math.floor(Math.random() * 100);
+        const markup = 1 + Math.random() * 0.5; // 0-50% markup
+        const resalePrice = Math.round(originalPrice * markup);
+        const royaltyFee = Math.round(resalePrice * (royaltyPercentage / 100));
+        const serviceFee = Math.round(resalePrice * 0.1); // 10% service fee
+
+        dummyResaleTickets.push({
+          id: `resale_${Math.random().toString(36).substring(2, 10)}`,
+          ticketId: `ticket_${Math.random().toString(36).substring(2, 10)}`,
+          eventId: eventData.id,
+          section: "GA",
+          row: "GA",
+          seat: undefined,
+          price: resalePrice,
+          originalPrice: originalPrice,
+          royaltyPercentage: royaltyPercentage,
+          royaltyFee: royaltyFee,
+          serviceFee: serviceFee,
+          sellerId: `user_${Math.random().toString(36).substring(2, 10)}`,
+        });
+      }
+
+      setResaleTickets(dummyResaleTickets);
+    };
+
     if (params.id) {
       fetchEventDetails();
     }
-  }, [params.id]);
+  }, [params.id, quantity]);
 
   useEffect(() => {
     // Update selected seats when quantity changes
@@ -346,10 +417,8 @@ export default function EventPage() {
         0
       ),
       offerName: ticketOffer.offerName,
-      // Add the chain event key if available
-      chainEventKey: chainEventKey || undefined,
+      isResale: false,
     };
-    console.log(ticketData, chainEventKey);
 
     addToCart(ticketData);
 
@@ -365,9 +434,49 @@ export default function EventPage() {
     setCartSheetOpen(true);
   };
 
-  // Let's also optimize the handleSectionChange and handleRowChange functions to avoid unnecessary loading
+  const handleAddResaleToCart = () => {
+    if (!selectedResaleTicket || !event) return;
 
-  // Update handleSectionChange:
+    const ticketData = {
+      eventId: event.id,
+      eventName: event.name,
+      ticketTypeId: selectedResaleTicket.ticketId,
+      priceLevelId: "resale",
+      section: selectedResaleTicket.section,
+      row: selectedResaleTicket.row,
+      seats: selectedResaleTicket.seat ? [selectedResaleTicket.seat] : [],
+      quantity: 1, // Resale tickets are sold individually
+      price: selectedResaleTicket.price,
+      fees: selectedResaleTicket.serviceFee + selectedResaleTicket.royaltyFee,
+      offerName: `Resale Ticket - ${selectedResaleTicket.section} ${
+        selectedResaleTicket.row
+      }${
+        selectedResaleTicket.seat ? ` Seat ${selectedResaleTicket.seat}` : ""
+      }`,
+      isResale: true,
+      resaleId: selectedResaleTicket.id,
+      royaltyFee: selectedResaleTicket.royaltyFee,
+      serviceFee: selectedResaleTicket.serviceFee,
+    };
+
+    addToCart(ticketData);
+
+    // Show success toast
+    toast({
+      title: "Added to cart",
+      description: `Resale ticket for ${event.name}`,
+    });
+
+    // Remove the ticket from available resale tickets
+    setResaleTickets(
+      resaleTickets.filter((ticket) => ticket.id !== selectedResaleTicket.id)
+    );
+    setSelectedResaleTicket(null);
+
+    // Open the cart sheet
+    setCartSheetOpen(true);
+  };
+
   const handleSectionChange = (value: string) => {
     setSelectedSection(value);
     setSelectedRow("");
@@ -388,7 +497,6 @@ export default function EventPage() {
     }
   };
 
-  // Update handleRowChange:
   const handleRowChange = (value: string) => {
     setSelectedRow(value);
     setSelectedSeats([]);
@@ -541,6 +649,13 @@ export default function EventPage() {
               View Cart
             </Link>
           </Button>
+
+          <Button variant="outline" asChild>
+            <Link href="/my-tickets">
+              <Ticket className="h-4 w-4 mr-2" />
+              My Tickets
+            </Link>
+          </Button>
         </div>
       </div>
 
@@ -577,6 +692,12 @@ export default function EventPage() {
               <Ticket className="h-5 w-5 text-gray-500" />
               <span>Max {event.ticketLimit || 10} tickets per order</span>
             </div>
+            {event.royaltyPercentage > 0 && (
+              <div className="flex items-center gap-2">
+                <Percent className="h-5 w-5 text-gray-500" />
+                <span>Resale Royalty: {event.royaltyPercentage}%</span>
+              </div>
+            )}
           </div>
           <div className="mb-8">
             <h2 className="text-xl font-semibold mb-2">About This Event</h2>
@@ -598,7 +719,10 @@ export default function EventPage() {
                 <Tabs defaultValue="tickets" className="mb-6">
                   <TabsList className="w-full">
                     <TabsTrigger value="tickets" className="flex-1">
-                      Tickets
+                      Primary
+                    </TabsTrigger>
+                    <TabsTrigger value="resale" className="flex-1">
+                      Resale
                     </TabsTrigger>
                     <TabsTrigger value="seating" className="flex-1">
                       Seating
@@ -621,6 +745,7 @@ export default function EventPage() {
                               setSelectedSection("");
                               setSelectedRow("");
                               setSelectedSeats([]);
+                              setSelectedResaleTicket(null);
 
                               // Auto-select first section and row
                               if (
@@ -729,6 +854,103 @@ export default function EventPage() {
                         )
                       )}
                     </div>
+                  </TabsContent>
+
+                  <TabsContent value="resale" className="mt-4">
+                    {resaleTickets.length === 0 ? (
+                      <div className="text-center py-8">
+                        <RefreshCw className="mx-auto h-8 w-8 text-gray-300 mb-4" />
+                        <p className="text-gray-500 mb-4">
+                          No resale tickets available
+                        </p>
+                        <p className="text-sm text-gray-400">
+                          Check back later for fan-to-fan resale tickets
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {resaleTickets.map((ticket) => (
+                          <div
+                            key={ticket.id}
+                            className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                              selectedResaleTicket?.id === ticket.id
+                                ? "border-primary bg-primary/5"
+                                : "border-gray-200 hover:border-gray-300"
+                            }`}
+                            onClick={() => {
+                              setSelectedResaleTicket(ticket);
+                              setSelectedTicket(null);
+                              setSelectedSection("");
+                              setSelectedRow("");
+                              setSelectedSeats([]);
+                            }}
+                          >
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <div className="flex items-center">
+                                  <h3 className="font-medium">
+                                    {ticket.section} {ticket.row}
+                                    {ticket.seat ? ` Seat ${ticket.seat}` : ""}
+                                  </h3>
+                                  <Badge
+                                    variant="outline"
+                                    className="ml-2 bg-amber-50 text-amber-800 border-amber-200"
+                                  >
+                                    Resale
+                                  </Badge>
+                                </div>
+                                <p className="text-sm text-gray-500">
+                                  Original price:{" "}
+                                  {formatCurrency(ticket.originalPrice)}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-semibold">
+                                  {formatCurrency(ticket.price)}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  +{" "}
+                                  {formatCurrency(
+                                    ticket.serviceFee + ticket.royaltyFee
+                                  )}{" "}
+                                  fees
+                                </div>
+                              </div>
+                            </div>
+
+                            {selectedResaleTicket?.id === ticket.id && (
+                              <div className="mt-4 pt-4 border-t border-gray-200">
+                                <div className="space-y-2 text-sm">
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-500">
+                                      Ticket Price
+                                    </span>
+                                    <span>{formatCurrency(ticket.price)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-500">
+                                      Service Fee
+                                    </span>
+                                    <span>
+                                      {formatCurrency(ticket.serviceFee)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="flex items-center text-gray-500">
+                                      <Percent className="h-3 w-3 mr-1" />
+                                      Royalty Fee ({ticket.royaltyPercentage}%)
+                                    </span>
+                                    <span>
+                                      {formatCurrency(ticket.royaltyFee)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </TabsContent>
 
                   <TabsContent value="seating" className="mt-4">

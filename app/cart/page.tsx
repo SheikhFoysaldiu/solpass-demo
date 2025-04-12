@@ -47,6 +47,7 @@ export default function CartPage() {
   );
   const total = subtotal + fees;
 
+  // Update the handleCheckout function to save purchased tickets to localStorage
   const handleCheckout = async () => {
     setIsProcessing(true);
 
@@ -73,7 +74,6 @@ export default function CartPage() {
                 ],
                 program.programId
               );
-
               // Call purchaseTicket instruction
               const tx = await program.methods
                 .purchaseTicket(ticketId)
@@ -86,6 +86,51 @@ export default function CartPage() {
                 .rpc();
 
               console.log("Ticket purchase transaction:", tx);
+
+              // Save the purchased tickets to localStorage
+              const purchasedTickets = cart.map((item) => ({
+                id: "ticket_" + Math.random().toString(36).substring(2, 10),
+                orderId: response.orderId,
+                eventId: item.eventId,
+                eventName: item.eventName,
+                eventDate: new Date(
+                  Date.now() + 14 * 24 * 60 * 60 * 1000
+                ).toISOString(), // 14 days from now as placeholder
+                section: item.section,
+                row: item.row,
+                seat:
+                  item.seats && item.seats.length > 0
+                    ? item.seats[0]
+                    : undefined,
+                ticketType: item.offerName,
+                purchaseDate: new Date().toISOString(),
+                price: item.price,
+                isResale: item.isResale || false,
+                isListed: false,
+              }));
+
+              // Get existing tickets or initialize empty array
+              const existingTickets = localStorage.getItem("purchasedTickets");
+              let allTickets = [];
+
+              if (existingTickets) {
+                try {
+                  allTickets = JSON.parse(existingTickets);
+                } catch (error) {
+                  console.error("Error parsing existing tickets:", error);
+                  allTickets = [];
+                }
+              }
+
+              // Combine existing and new tickets
+              allTickets = [...allTickets, ...purchasedTickets];
+              localStorage.setItem(
+                "purchasedTickets",
+                JSON.stringify(allTickets)
+              );
+
+              // Clear the cart
+              clearCart();
             }
           }
 
@@ -127,6 +172,51 @@ export default function CartPage() {
       //   clearCart();
       //   router.push("/checkout/success");
       // }, 1500);
+      // If API fails, still proceed with checkout and save tickets
+      const orderId = Math.floor(Math.random() * 1000000)
+        .toString()
+        .padStart(6, "0");
+
+      // Save purchased tickets
+      const purchasedTickets = cart.map((item) => ({
+        id: "ticket_" + Math.random().toString(36).substring(2, 10),
+        orderId: orderId,
+        eventId: item.eventId,
+        eventName: item.eventName,
+        eventDate: new Date(
+          Date.now() + 14 * 24 * 60 * 60 * 1000
+        ).toISOString(), // 14 days from now as placeholder
+        section: item.section,
+        row: item.row,
+        seat: item.seats && item.seats.length > 0 ? item.seats[0] : undefined,
+        ticketType: item.offerName,
+        purchaseDate: new Date().toISOString(),
+        price: item.price,
+        isResale: item.isResale || false,
+        isListed: false,
+      }));
+
+      // Get existing tickets or initialize empty array
+      const existingTickets = localStorage.getItem("purchasedTickets");
+      let allTickets = [];
+
+      if (existingTickets) {
+        try {
+          allTickets = JSON.parse(existingTickets);
+        } catch (error) {
+          console.error("Error parsing existing tickets:", error);
+          allTickets = [];
+        }
+      }
+
+      // Combine existing and new tickets
+      allTickets = [...allTickets, ...purchasedTickets];
+      localStorage.setItem("purchasedTickets", JSON.stringify(allTickets));
+
+      setTimeout(() => {
+        clearCart();
+        router.push("/checkout/success");
+      }, 1500);
     }
   };
 
