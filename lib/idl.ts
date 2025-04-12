@@ -1,3 +1,5 @@
+import { IdlType } from "@coral-xyz/anchor/dist/cjs/idl";
+
 export const IDL = {
   version: "0.1.0",
   name: "ticket_master",
@@ -99,3 +101,49 @@ export const IDL = {
     },
   ],
 };
+
+interface IdlField {
+  name: string;
+  type: IdlType;
+}
+
+interface IdlAccountItem {
+  name: string;
+  isMut: boolean;
+  isSigner: boolean;
+}
+
+interface IdlInstruction {
+  name: string;
+  accounts: IdlAccountItem[];
+  args: IdlField[];
+}
+
+interface IdlConstant {
+  name: string;
+  type: string;
+  value: string;
+}
+
+interface IdlAccount {
+  name: string;
+  type: {
+    kind: "struct";
+    fields: IdlField[];
+  };
+}
+
+interface IdlError {
+  code: number;
+  name: string;
+  msg: string;
+}
+
+export interface IDLType {
+  version: string;
+  name: string;
+  constants?: IdlConstant[];
+  instructions: IdlInstruction[];
+  accounts?: IdlAccount[];
+  errors?: IdlError[];
+}

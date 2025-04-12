@@ -11,6 +11,16 @@ import { useCart } from "@/hooks/use-cart";
 import { useToast } from "@/hooks/use-toast";
 import { EventType, generateDummyEvent } from "@/lib/mock-data";
 import Link from "next/link";
+import { WalletButton } from "@/components/providers/solana";
+import ChainEvents, { useChainEvents } from "@/components/events/chain-events";
+import { AnchorProvider, BN, Program, setProvider } from "@coral-xyz/anchor";
+import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
+import { IDLType } from "@/lib/idl";
+import idl from "@/lib/idl.json";
+import { programId } from "@/lib/contants";
+import { PublicKey, SystemProgram } from "@solana/web3.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useProgram } from "@/lib/hooks/useProgram";
 
 export default function Home() {
   const [events, setEvents] = useState<EventType[]>([]);
@@ -21,14 +31,77 @@ export default function Home() {
   const [cartSheetOpen, setCartSheetOpen] = useState(false);
   const totalItems = cart.reduce((total, item) => total + item.quantity, 0);
 
+  const { data: chainEvents = [], isLoading: isLoadingChainEvents } =
+    useChainEvents();
+  const { connection } = useConnection();
+  const wallet = useAnchorWallet();
+  const queryClient = useQueryClient();
+
+  const program = useProgram();
+
+  const chainEventsByIdMap = new Map(
+    chainEvents.map((event) => [event.account.eventId, event])
+  );
+
+  const initializeEventMutation = useMutation({
+    mutationFn: async (event: EventType) => {
+      if (!wallet || !program) throw new Error("Wallet not connected");
+
+      const [eventPda] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("EVENT_STATE"),
+          wallet.publicKey.toBuffer(),
+          Buffer.from(event.id),
+        ],
+        program.programId
+      );
+
+      const eventDate = new Date(event.date).getTime() / 1000;
+      const ticketPriceLamports = Math.floor(100);
+
+      const tx = await program.methods
+        .createEvent(
+          event.id,
+          event.name,
+          event.description || "A littet description",
+          event.venue || "A veno",
+          new BN(eventDate),
+          new BN(event.ticketTypes.length),
+          new BN(ticketPriceLamports)
+        )
+        .accounts({
+          eventAccount: eventPda,
+          authority: wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      return tx;
+    },
+    onSuccess: (_, event) => {
+      toast({
+        title: "Event initialized on blockchain",
+        description: `${event.name} has been successfully initialized on the blockchain.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["chainEvents"] });
+    },
+    onError: (error) => {
+      console.error("Error initializing event on blockchain:", error);
+      toast({
+        title: "Initialization failed",
+        description:
+          "Failed to initialize event on blockchain. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   useEffect(() => {
-    // Load events from our API
     const fetchEventsData = async () => {
       try {
         setLoading(true);
         const eventsData = await fetchEvents();
 
-        // Make sure eventsData is an array and filter out any invalid events
         const validEvents = Array.isArray(eventsData)
           ? eventsData.filter(
               (event) => event && typeof event === "object" && "id" in event
@@ -38,14 +111,12 @@ export default function Home() {
         if (validEvents.length > 0) {
           setEvents(validEvents);
         } else {
-          // If no events, create a dummy event
-          const dummyEvent = generateDummyEvent();
+          const dummyEvent = generateDummyEvent(50);
           setEvents([dummyEvent]);
         }
       } catch (error) {
         console.error("Error fetching events:", error);
-        // If API fails, create a dummy event
-        const dummyEvent = generateDummyEvent();
+        const dummyEvent = generateDummyEvent(50);
         setEvents([dummyEvent]);
       } finally {
         setLoading(false);
@@ -56,22 +127,35 @@ export default function Home() {
   }, []);
 
   const handleCreateEvent = (newEvent: EventType) => {
-    // Add the new event to the events array
     setEvents((prevEvents) => [...prevEvents, newEvent]);
     setShowCreateForm(false);
 
-    // Show success toast
     toast({
       title: "Event created",
       description: `${newEvent.name} has been created successfully.`,
     });
   };
 
+  const handleInitializeEvent = (event: EventType) => {
+    initializeEventMutation.mutate(event);
+  };
+
+  const enhancedEvents = events.map((event) => {
+    const chainEvent = chainEventsByIdMap.get(event.id);
+    return {
+      ...event,
+      onChain: !!chainEvent,
+      chainData: chainEvent,
+    };
+  });
+  console.log("eh", enhancedEvents, chainEventsByIdMap, events);
+
   return (
     <main className="container mx-auto py-8 px-4">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Event Ticketing</h1>
         <div className="flex items-center gap-4">
+          <WalletButton />
           <div className="flex items-center gap-2">
             <CartSheet open={cartSheetOpen} onOpenChange={setCartSheetOpen}>
               <Button
@@ -127,13 +211,25 @@ export default function Home() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {events.map((event) =>
+          {enhancedEvents.map((event) =>
             event && event.id ? (
-              <EventCard key={event.id} event={event} />
+              <EventCard
+                key={event.id}
+                event={event}
+                isOnChain={event.onChain}
+                chainData={event.chainData}
+                onInitialize={() => handleInitializeEvent(event)}
+                isInitializing={
+                  initializeEventMutation.isPending &&
+                  initializeEventMutation.variables?.id === event.id
+                }
+                walletConnected={!!wallet}
+              />
             ) : null
           )}
         </div>
       )}
+      <ChainEvents />
     </main>
   );
 }

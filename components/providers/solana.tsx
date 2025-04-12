@@ -23,6 +23,7 @@ export const WalletButton = dynamic(
 
 export function SolanaProvider({ children }: { children: ReactNode }) {
   const network = WalletAdapterNetwork.Devnet;
+
   //   const { cluster } = useCluster(); // Custom hook to get cluster config
   //   const endpoint = useMemo(() => cluster.endpoint, [cluster]); // Cluster endpoint (e.g., devnet)
   const endpoint = useMemo(() => clusterApiUrl(network), [network]);

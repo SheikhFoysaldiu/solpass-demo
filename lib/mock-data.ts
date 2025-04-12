@@ -1,5 +1,5 @@
 // Generate random dummy event data
-export function generateDummyEvent() {
+export function generateDummyEvent(i: number) {
   const eventTypes = [
     "Concert",
     "Festival",
@@ -63,7 +63,7 @@ export function generateDummyEvent() {
   ];
 
   return {
-    id,
+    id: `0B004D43F86C478F${i}`,
     name,
     date: futureDate.toISOString(),
     venue,
@@ -79,7 +79,7 @@ export function generateDummyEvent() {
 }
 
 // Mock event data
-export const mockEventData = generateDummyEvent();
+export const mockEventData = generateDummyEvent(100);
 export type EventType = typeof mockEventData;
 
 // Mock event availability data from the API response
