@@ -119,7 +119,15 @@ export function EventCard({
 
         {/* The original View Event button */}
         <Button asChild className="w-full">
-          <Link href={`/events/${event.id}`}>View Event</Link>
+          <Link
+            href={`/events/${event.id}${
+              chainData
+                ? `?chainEventKey=${chainData.publicKey.toString()}`
+                : ""
+            }`}
+          >
+            View Event
+          </Link>
         </Button>
       </CardFooter>
     </Card>

@@ -1,54 +1,66 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState, useEffect } from "react"
-import { useParams, useRouter } from "next/navigation"
-import Image from "next/image"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ShoppingCart, Calendar, MapPin, Clock, ArrowLeft, Ticket, Loader2 } from "lucide-react"
-import { useCart } from "@/hooks/use-cart"
-import { formatDate, formatCurrency } from "@/lib/utils"
-import { fetchEventById, fetchEventAvailability } from "@/lib/api-client"
-import { CartSheet } from "@/components/cart-sheet"
-import { useToast } from "@/hooks/use-toast"
-import Link from "next/link"
-import { generateDummyEvent } from "@/lib/mock-data"
+import { useState, useEffect } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ShoppingCart,
+  Calendar,
+  MapPin,
+  Clock,
+  ArrowLeft,
+  Ticket,
+  Loader2,
+} from "lucide-react";
+import { useCart } from "@/hooks/use-cart";
+import { formatDate, formatCurrency } from "@/lib/utils";
+import { fetchEventById, fetchEventAvailability } from "@/lib/api-client";
+import { CartSheet } from "@/components/cart-sheet";
+import { useToast } from "@/hooks/use-toast";
+import Link from "next/link";
+import { generateDummyEvent } from "@/lib/mock-data";
+import ChainTickets from "@/components/tickets/chain-tickets";
 
 // Default ticket data to use as fallback
 export interface TicketData {
   offers: {
-    ticketTypeId: string
-    priceLevelId: string
-    currency: string
-    faceValue: number
+    ticketTypeId: string;
+    priceLevelId: string;
+    currency: string;
+    faceValue: number;
     charges: {
-      reason: string
-      type: string
-      amount: number
-    }[]
-    offerName: string
-    offerDescription: string
-    eventTicketMinimum: number
-    sellableQuantities: number[]
-  }[]
-  available: number
+      reason: string;
+      type: string;
+      amount: number;
+    }[];
+    offerName: string;
+    offerDescription: string;
+    eventTicketMinimum: number;
+    sellableQuantities: number[];
+  }[];
+  available: number;
   inventory: {
-    section: string
-    row: string
-    seats: number[]
-  }[]
+    section: string;
+    row: string;
+    seats: number[];
+  }[];
 }
 
-
-const defaultTicketData:
-  TicketData
-  = {
+const defaultTicketData: TicketData = {
   offers: [
     {
       ticketTypeId: "000000000001",
@@ -81,158 +93,183 @@ const defaultTicketData:
       seats: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
     },
   ],
-}
+};
 
 export default function EventPage() {
-  const params = useParams()
-  const router = useRouter()
-  const { addToCart, cart } = useCart()
-  const { toast } = useToast()
-  const [event, setEvent] = useState<any>(null)
-  const [availability, setAvailability] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [selectedTicket, setSelectedTicket] = useState<TicketData | null>(null)
-  const [quantity, setQuantity] = useState(1)
-  const [selectedSection, setSelectedSection] = useState("")
-  const [selectedRow, setSelectedRow] = useState("")
-  const [selectedSeats, setSelectedSeats] = useState<number[]>([])
-  const [cartSheetOpen, setCartSheetOpen] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const chainEventKey = searchParams.get("chainEventKey");
+  const { addToCart, cart } = useCart();
+  const { toast } = useToast();
+  const [event, setEvent] = useState<any>(null);
+  const [availability, setAvailability] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedTicket, setSelectedTicket] = useState<TicketData | null>(null);
+  const [quantity, setQuantity] = useState(1);
+  const [selectedSection, setSelectedSection] = useState("");
+  const [selectedRow, setSelectedRow] = useState("");
+  const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
+  const [cartSheetOpen, setCartSheetOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   // Let's also add a loading indicator specifically for ticket selection to improve UX
   // Add this state variable near the top with other state variables:
-  const [isTicketLoading, setIsTicketLoading] = useState(false)
+  const [isTicketLoading, setIsTicketLoading] = useState(false);
 
   useEffect(() => {
-
-
-
     const fetchEventDetails = async () => {
-
-
       try {
-        setLoading(true)
-        setError(null)
+        setLoading(true);
+        setError(null);
 
         // Fetch event details from our API
-        let eventData = await fetchEventById(params?.id as string)
+        let eventData = await fetchEventById(params?.id as string);
 
         // If event not found, create a dummy event
         if (!eventData) {
-          eventData = generateDummyEvent()
-          eventData.id = params.id as string
+          eventData = generateDummyEvent(200);
+          eventData.id = params.id as string;
         }
 
-        setEvent(eventData)
+        setEvent(eventData);
 
         // Try to fetch availability data
         try {
-          const availabilityData = await fetchEventAvailability(params.id as string)
+          const availabilityData = await fetchEventAvailability(
+            params.id as string
+          );
 
           // Check if the availability data has the expected structure
-          if (availabilityData && availabilityData.event && Array.isArray(availabilityData.event.tickets)) {
-            setAvailability(availabilityData)
+          if (
+            availabilityData &&
+            availabilityData.event &&
+            Array.isArray(availabilityData.event.tickets)
+          ) {
+            setAvailability(availabilityData);
 
             if (availabilityData.event.tickets.length > 0) {
-              setSelectedTicket(availabilityData.event.tickets[0])
+              setSelectedTicket(availabilityData.event.tickets[0]);
 
               // Auto-select first section and row if available
-              const firstTicket = availabilityData.event.tickets[0]
+              const firstTicket = availabilityData.event.tickets[0];
               if (firstTicket.inventory && firstTicket.inventory.length > 0) {
-                setSelectedSection(firstTicket.inventory[0].section)
-                setSelectedRow(firstTicket.inventory[0].row)
+                setSelectedSection(firstTicket.inventory[0].section);
+                setSelectedRow(firstTicket.inventory[0].row);
 
                 // Select first available seats based on quantity
-                if (firstTicket.inventory[0].seats && firstTicket.inventory[0].seats.length >= quantity) {
-                  setSelectedSeats(firstTicket.inventory[0].seats.slice(0, quantity))
+                if (
+                  firstTicket.inventory[0].seats &&
+                  firstTicket.inventory[0].seats.length >= quantity
+                ) {
+                  setSelectedSeats(
+                    firstTicket.inventory[0].seats.slice(0, quantity)
+                  );
                 }
               }
             }
           } else {
             // If availability data doesn't have the expected structure, create a default one
-            createDefaultAvailability(eventData)
+            createDefaultAvailability(eventData);
           }
         } catch (error) {
-          console.error("Error fetching availability:", error)
+          console.error("Error fetching availability:", error);
           // Create default availability data
-          createDefaultAvailability(eventData)
+          createDefaultAvailability(eventData);
         }
 
-        setLoading(false)
+        setLoading(false);
       } catch (error) {
-        console.error("Error fetching event details:", error)
+        console.error("Error fetching event details:", error);
 
         // Create a dummy event if there's an error
-        const dummyEvent = generateDummyEvent()
-        dummyEvent.id = params.id as string
-        setEvent(dummyEvent)
-        createDefaultAvailability(dummyEvent)
+        const dummyEvent = generateDummyEvent(200);
+        dummyEvent.id = params.id as string;
+        setEvent(dummyEvent);
+        createDefaultAvailability(dummyEvent);
 
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
     // Helper function to create default availability data
     const createDefaultAvailability = (eventData: any) => {
       // Create default availability data based on the event's ticket types if available
-      if (eventData.ticketTypes && Array.isArray(eventData.ticketTypes) && eventData.ticketTypes.length > 0) {
-        const tickets = eventData.ticketTypes.map((ticketType: any, index: number) => {
-          return {
-            offers: [
-              {
-                ticketTypeId: `00000000000${index + 1}`,
-                priceLevelId: `${index + 1}`,
-                currency: "USD",
-                faceValue: ticketType.price || 50,
-                charges: [
-                  {
-                    reason: "service",
-                    type: "fee",
-                    amount: ticketType.fees || 10,
-                  },
-                ],
-                offerName: ticketType.name || `Ticket Type ${index + 1}`,
-                offerDescription: ticketType.name || `Ticket Type ${index + 1}`,
-                eventTicketMinimum: 1,
-                sellableQuantities: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-              },
-            ],
-            available: ticketType.available || 100,
-            inventory: [
-              {
-                section: "GA",
-                row: "GA",
-                seats: Array.from({ length: 20 }, (_, i) => i + 1),
-              },
-            ],
+      if (
+        eventData.ticketTypes &&
+        Array.isArray(eventData.ticketTypes) &&
+        eventData.ticketTypes.length > 0
+      ) {
+        const tickets = eventData.ticketTypes.map(
+          (ticketType: any, index: number) => {
+            return {
+              offers: [
+                {
+                  ticketTypeId: `00000000000${index + 1}`,
+                  priceLevelId: `${index + 1}`,
+                  currency: "USD",
+                  faceValue: ticketType.price || 50,
+                  charges: [
+                    {
+                      reason: "service",
+                      type: "fee",
+                      amount: ticketType.fees || 10,
+                    },
+                  ],
+                  offerName: ticketType.name || `Ticket Type ${index + 1}`,
+                  offerDescription:
+                    ticketType.name || `Ticket Type ${index + 1}`,
+                  eventTicketMinimum: 1,
+                  sellableQuantities: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                },
+              ],
+              available: ticketType.available || 100,
+              inventory: [
+                {
+                  section: "GA",
+                  row: "GA",
+                  seats: Array.from({ length: 20 }, (_, i) => i + 1),
+                },
+              ],
+            };
           }
-        })
+        );
 
         const defaultAvailability = {
           event: {
             id: eventData.id,
             tickets: tickets.length > 0 ? tickets : [defaultTicketData],
           },
-        }
+        };
 
-        setAvailability(defaultAvailability)
+        setAvailability(defaultAvailability);
 
         if (defaultAvailability.event.tickets.length > 0) {
-          setSelectedTicket(defaultAvailability.event.tickets[0])
+          setSelectedTicket(defaultAvailability.event.tickets[0]);
 
           // Auto-select first section and row
           if (
             defaultAvailability.event.tickets[0].inventory &&
             defaultAvailability.event.tickets[0].inventory.length > 0
           ) {
-            setSelectedSection(defaultAvailability.event.tickets[0].inventory[0].section)
-            setSelectedRow(defaultAvailability.event.tickets[0].inventory[0].row)
+            setSelectedSection(
+              defaultAvailability.event.tickets[0].inventory[0].section
+            );
+            setSelectedRow(
+              defaultAvailability.event.tickets[0].inventory[0].row
+            );
 
             // Select first available seats based on quantity
             if (
               defaultAvailability.event.tickets[0].inventory[0].seats &&
-              defaultAvailability.event.tickets[0].inventory[0].seats.length >= quantity
+              defaultAvailability.event.tickets[0].inventory[0].seats.length >=
+                quantity
             ) {
-              setSelectedSeats(defaultAvailability.event.tickets[0].inventory[0].seats.slice(0, quantity))
+              setSelectedSeats(
+                defaultAvailability.event.tickets[0].inventory[0].seats.slice(
+                  0,
+                  quantity
+                )
+              );
             }
           }
         }
@@ -243,44 +280,57 @@ export default function EventPage() {
             id: eventData.id,
             tickets: [defaultTicketData],
           },
-        }
+        };
 
-        setAvailability(defaultAvailability)
-        setSelectedTicket(defaultTicketData)
+        setAvailability(defaultAvailability);
+        setSelectedTicket(defaultTicketData);
 
-        if (defaultTicketData.inventory && defaultTicketData.inventory.length > 0) {
-          setSelectedSection(defaultTicketData.inventory[0].section)
-          setSelectedRow(defaultTicketData.inventory[0].row)
+        if (
+          defaultTicketData.inventory &&
+          defaultTicketData.inventory.length > 0
+        ) {
+          setSelectedSection(defaultTicketData.inventory[0].section);
+          setSelectedRow(defaultTicketData.inventory[0].row);
 
-          if (defaultTicketData.inventory[0].seats && defaultTicketData.inventory[0].seats.length >= quantity) {
-            setSelectedSeats(defaultTicketData.inventory[0].seats.slice(0, quantity))
+          if (
+            defaultTicketData.inventory[0].seats &&
+            defaultTicketData.inventory[0].seats.length >= quantity
+          ) {
+            setSelectedSeats(
+              defaultTicketData.inventory[0].seats.slice(0, quantity)
+            );
           }
         }
       }
-    }
+    };
 
     if (params.id) {
-      fetchEventDetails()
+      fetchEventDetails();
     }
-  }, [params.id])
+  }, [params.id]);
 
   useEffect(() => {
     // Update selected seats when quantity changes
     if (selectedTicket && selectedSection && selectedRow) {
       const inventoryItem = selectedTicket.inventory?.find(
-        (item: any) => item.section === selectedSection && item.row === selectedRow,
-      )
+        (item: any) =>
+          item.section === selectedSection && item.row === selectedRow
+      );
 
-      if (inventoryItem && inventoryItem.seats && inventoryItem.seats.length >= quantity) {
-        setSelectedSeats(inventoryItem.seats.slice(0, quantity))
+      if (
+        inventoryItem &&
+        inventoryItem.seats &&
+        inventoryItem.seats.length >= quantity
+      ) {
+        setSelectedSeats(inventoryItem.seats.slice(0, quantity));
       }
     }
-  }, [quantity, selectedTicket, selectedSection, selectedRow])
+  }, [quantity, selectedTicket, selectedSection, selectedRow]);
 
   const handleAddToCart = () => {
-    if (!selectedTicket || !event) return
+    if (!selectedTicket || !event) return;
 
-    const ticketOffer = selectedTicket.offers[0]
+    const ticketOffer = selectedTicket.offers[0];
     const ticketData = {
       eventId: event.id,
       eventName: event.name,
@@ -291,114 +341,138 @@ export default function EventPage() {
       seats: selectedSeats,
       quantity: quantity,
       price: ticketOffer.faceValue,
-      fees: ticketOffer.charges.reduce((total: number, charge: any) => total + (charge.amount || 0), 0),
+      fees: ticketOffer.charges.reduce(
+        (total: number, charge: any) => total + (charge.amount || 0),
+        0
+      ),
       offerName: ticketOffer.offerName,
-    }
+      // Add the chain event key if available
+      chainEventKey: chainEventKey || undefined,
+    };
+    console.log(ticketData, chainEventKey);
 
-    addToCart(ticketData)
+    addToCart(ticketData);
 
     // Show success toast
     toast({
       title: "Added to cart",
-      description: `${quantity} ticket${quantity > 1 ? "s" : ""} for ${event.name}`,
-    })
+      description: `${quantity} ticket${quantity > 1 ? "s" : ""} for ${
+        event.name
+      }`,
+    });
 
     // Open the cart sheet
-    setCartSheetOpen(true)
-  }
+    setCartSheetOpen(true);
+  };
 
   // Let's also optimize the handleSectionChange and handleRowChange functions to avoid unnecessary loading
 
   // Update handleSectionChange:
   const handleSectionChange = (value: string) => {
-    setSelectedSection(value)
-    setSelectedRow("")
-    setSelectedSeats([])
+    setSelectedSection(value);
+    setSelectedRow("");
+    setSelectedSeats([]);
 
     // Find available rows for this section
-    const inventory = selectedTicket?.inventory?.filter((item: any) => item.section === value)
+    const inventory = selectedTicket?.inventory?.filter(
+      (item: any) => item.section === value
+    );
 
     if (inventory && inventory.length > 0) {
-      setSelectedRow(inventory[0].row)
+      setSelectedRow(inventory[0].row);
 
       // Select first available seats based on quantity
       if (inventory[0].seats && inventory[0].seats.length >= quantity) {
-        setSelectedSeats(inventory[0].seats.slice(0, quantity))
+        setSelectedSeats(inventory[0].seats.slice(0, quantity));
       }
     }
-  }
+  };
 
   // Update handleRowChange:
   const handleRowChange = (value: string) => {
-    setSelectedRow(value)
-    setSelectedSeats([])
+    setSelectedRow(value);
+    setSelectedSeats([]);
 
     // Find available seats for this section and row
     const inventoryItem = selectedTicket?.inventory?.find(
-      (item: any) => item.section === selectedSection && item.row === value,
-    )
+      (item: any) => item.section === selectedSection && item.row === value
+    );
 
-    if (inventoryItem && inventoryItem.seats && inventoryItem.seats.length >= quantity) {
-      setSelectedSeats(inventoryItem.seats.slice(0, quantity))
+    if (
+      inventoryItem &&
+      inventoryItem.seats &&
+      inventoryItem.seats.length >= quantity
+    ) {
+      setSelectedSeats(inventoryItem.seats.slice(0, quantity));
     }
-  }
+  };
 
   // Handle seat selection
   const handleSeatClick = (seat: number, e: React.MouseEvent) => {
-    e.preventDefault() // Prevent default behavior
+    e.preventDefault(); // Prevent default behavior
 
     // Toggle seat selection
     if (selectedSeats.includes(seat)) {
-      setSelectedSeats(selectedSeats.filter((s) => s !== seat))
+      setSelectedSeats(selectedSeats.filter((s) => s !== seat));
     } else {
       // Only allow selecting up to the quantity
       if (selectedSeats.length < quantity) {
-        setSelectedSeats([...selectedSeats, seat].sort((a, b) => a - b))
+        setSelectedSeats([...selectedSeats, seat].sort((a, b) => a - b));
       } else {
         // Replace the first seat with the new one
-        const newSeats = [...selectedSeats.slice(1), seat].sort((a, b) => a - b)
-        setSelectedSeats(newSeats)
+        const newSeats = [...selectedSeats.slice(1), seat].sort(
+          (a, b) => a - b
+        );
+        setSelectedSeats(newSeats);
       }
     }
-  }
+  };
 
   const getAvailableSections = () => {
-    if (!selectedTicket || !selectedTicket.inventory) return []
+    if (!selectedTicket || !selectedTicket.inventory) return [];
 
-    const sections = new Set<string>()
+    const sections = new Set<string>();
     selectedTicket.inventory.forEach((item: any) => {
       if (item && item.section) {
-        sections.add(item.section)
+        sections.add(item.section);
       }
-    })
+    });
 
-    return Array.from(sections)
-  }
+    return Array.from(sections);
+  };
 
   const getAvailableRows = () => {
-    if (!selectedTicket || !selectedTicket.inventory || !selectedSection) return []
+    if (!selectedTicket || !selectedTicket.inventory || !selectedSection)
+      return [];
 
-    const rows = new Set<string>()
+    const rows = new Set<string>();
     selectedTicket.inventory
       .filter((item: any) => item && item.section === selectedSection)
       .forEach((item: any) => {
         if (item && item.row) {
-          rows.add(item.row)
+          rows.add(item.row);
         }
-      })
+      });
 
-    return Array.from(rows)
-  }
+    return Array.from(rows);
+  };
 
   const getAvailableSeats = () => {
-    if (!selectedTicket || !selectedTicket.inventory || !selectedSection || !selectedRow) return []
+    if (
+      !selectedTicket ||
+      !selectedTicket.inventory ||
+      !selectedSection ||
+      !selectedRow
+    )
+      return [];
 
     const inventoryItem = selectedTicket.inventory.find(
-      (item: any) => item.section === selectedSection && item.row === selectedRow,
-    )
+      (item: any) =>
+        item.section === selectedSection && item.row === selectedRow
+    );
 
-    return inventoryItem && inventoryItem.seats ? inventoryItem.seats : []
-  }
+    return inventoryItem && inventoryItem.seats ? inventoryItem.seats : [];
+  };
 
   if (loading) {
     return (
@@ -408,16 +482,19 @@ export default function EventPage() {
           <p>Loading event details...</p>
         </div>
       </div>
-    )
+    );
   }
 
   if (error || !event) {
     return (
       <div className="container mx-auto py-16 px-4 flex flex-col items-center">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-6 max-w-md w-full text-center">
-          <h1 className="text-2xl font-bold text-red-700 mb-2">Event not found</h1>
+          <h1 className="text-2xl font-bold text-red-700 mb-2">
+            Event not found
+          </h1>
           <p className="text-red-600 mb-4">
-            {error || "The event you're looking for doesn't exist or has been removed."}
+            {error ||
+              "The event you're looking for doesn't exist or has been removed."}
           </p>
           <Button asChild>
             <Link href="/">
@@ -427,7 +504,7 @@ export default function EventPage() {
           </Button>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -443,7 +520,12 @@ export default function EventPage() {
         </div>
         <div className="flex items-center gap-2">
           <CartSheet open={cartSheetOpen} onOpenChange={setCartSheetOpen}>
-            <Button variant="outline" size="icon" className="relative" onClick={() => setCartSheetOpen(true)}>
+            <Button
+              variant="outline"
+              size="icon"
+              className="relative"
+              onClick={() => setCartSheetOpen(true)}
+            >
               <ShoppingCart className="h-5 w-5" />
               {cart.length > 0 && (
                 <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
@@ -473,7 +555,6 @@ export default function EventPage() {
               priority
             />
           </div>
-
           <div className="flex flex-wrap gap-4 mb-6 bg-gray-50 p-4 rounded-lg">
             <div className="flex items-center gap-2">
               <Calendar className="h-5 w-5 text-gray-500" />
@@ -481,7 +562,12 @@ export default function EventPage() {
             </div>
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-gray-500" />
-              <span>{new Date(event.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+              <span>
+                {new Date(event.date).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <MapPin className="h-5 w-5 text-gray-500" />
@@ -492,11 +578,13 @@ export default function EventPage() {
               <span>Max {event.ticketLimit || 10} tickets per order</span>
             </div>
           </div>
-
           <div className="mb-8">
             <h2 className="text-xl font-semibold mb-2">About This Event</h2>
-            <p className="text-gray-700">{event.description || "No description available for this event."}</p>
+            <p className="text-gray-700">
+              {event.description || "No description available for this event."}
+            </p>
           </div>
+          <ChainTickets eventPublicKey={chainEventKey ?? undefined} />
         </div>
 
         <div>
@@ -504,7 +592,9 @@ export default function EventPage() {
             <CardContent className="p-6">
               <h2 className="text-xl font-semibold mb-4">Select Tickets</h2>
 
-              {availability && availability.event && availability.event.tickets ? (
+              {availability &&
+              availability.event &&
+              availability.event.tickets ? (
                 <Tabs defaultValue="tickets" className="mb-6">
                   <TabsList className="w-full">
                     <TabsTrigger value="tickets" className="flex-1">
@@ -517,90 +607,127 @@ export default function EventPage() {
 
                   <TabsContent value="tickets" className="mt-4">
                     <div className="space-y-4">
-                      {availability.event.tickets.map((ticket: any, index: number) => (
-                        <div
-                          key={index}
-                          className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedTicket === ticket
-                            ? "border-primary bg-primary/5"
-                            : "border-gray-200 hover:border-gray-300"
+                      {availability.event.tickets.map(
+                        (ticket: any, index: number) => (
+                          <div
+                            key={index}
+                            className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                              selectedTicket === ticket
+                                ? "border-primary bg-primary/5"
+                                : "border-gray-200 hover:border-gray-300"
                             }`}
-                          onClick={() => {
-                            setSelectedTicket(ticket)
-                            setSelectedSection("")
-                            setSelectedRow("")
-                            setSelectedSeats([])
+                            onClick={() => {
+                              setSelectedTicket(ticket);
+                              setSelectedSection("");
+                              setSelectedRow("");
+                              setSelectedSeats([]);
 
-                            // Auto-select first section and row
-                            if (ticket.inventory && ticket.inventory.length > 0) {
-                              setSelectedSection(ticket.inventory[0].section)
-                              setSelectedRow(ticket.inventory[0].row)
+                              // Auto-select first section and row
+                              if (
+                                ticket.inventory &&
+                                ticket.inventory.length > 0
+                              ) {
+                                setSelectedSection(ticket.inventory[0].section);
+                                setSelectedRow(ticket.inventory[0].row);
 
-                              // Select first available seats based on quantity
-                              if (ticket.inventory[0].seats && ticket.inventory[0].seats.length >= quantity) {
-                                setSelectedSeats(ticket.inventory[0].seats.slice(0, quantity))
+                                // Select first available seats based on quantity
+                                if (
+                                  ticket.inventory[0].seats &&
+                                  ticket.inventory[0].seats.length >= quantity
+                                ) {
+                                  setSelectedSeats(
+                                    ticket.inventory[0].seats.slice(0, quantity)
+                                  );
+                                }
                               }
-                            }
-                          }}
-                        >
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h3 className="font-medium">{ticket.offers[0].offerName}</h3>
-                              <p className="text-sm text-gray-500">{ticket.available} available</p>
-                            </div>
-                            <div className="text-right">
-                              <div className="font-semibold">{formatCurrency(ticket.offers[0].faceValue)}</div>
-                              <div className="text-xs text-gray-500">
-                                +{" "}
-                                {formatCurrency(
-                                  ticket.offers[0].charges.reduce(
-                                    (total: number, charge: any) => total + (charge.amount || 0),
-                                    0,
-                                  ),
-                                )}{" "}
-                                fees
+                            }}
+                          >
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h3 className="font-medium">
+                                  {ticket.offers[0].offerName}
+                                </h3>
+                                <p className="text-sm text-gray-500">
+                                  {ticket.available} available
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-semibold">
+                                  {formatCurrency(ticket.offers[0].faceValue)}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  +{" "}
+                                  {formatCurrency(
+                                    ticket.offers[0].charges.reduce(
+                                      (total: number, charge: any) =>
+                                        total + (charge.amount || 0),
+                                      0
+                                    )
+                                  )}{" "}
+                                  fees
+                                </div>
                               </div>
                             </div>
-                          </div>
 
-                          {selectedTicket === ticket && (
-                            <div className="mt-4 pt-4 border-t border-gray-200">
-                              <div className="mb-4">
-                                <Label htmlFor="quantity">Quantity</Label>
-                                {/* Then update the ticket selection UI to show a loading indicator when changing quantity */}
-                                {/* Find the quantity selector and update it: */}
-                                <Select
-                                  value={quantity.toString()}
-                                  onValueChange={(value) => {
-                                    setIsTicketLoading(true)
-                                    setQuantity(Number.parseInt(value))
-                                    // Use setTimeout to give a small delay for UI to update
-                                    setTimeout(() => setIsTicketLoading(false), 300)
-                                  }}
-                                >
-                                  <SelectTrigger id="quantity">
-                                    <SelectValue placeholder="Select quantity" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {ticket.offers[0].sellableQuantities
-                                      ? ticket.offers[0].sellableQuantities
-                                        .slice(0, Math.min(10, ticket.offers[0].sellableQuantities.length))
-                                        .map((qty: number) => (
-                                          <SelectItem key={qty} value={qty.toString()}>
-                                            {qty}
-                                          </SelectItem>
-                                        ))
-                                      : Array.from({ length: 10 }, (_, i) => i + 1).map((qty) => (
-                                        <SelectItem key={qty} value={qty.toString()}>
-                                          {qty}
-                                        </SelectItem>
-                                      ))}
-                                  </SelectContent>
-                                </Select>
+                            {selectedTicket === ticket && (
+                              <div className="mt-4 pt-4 border-t border-gray-200">
+                                <div className="mb-4">
+                                  <Label htmlFor="quantity">Quantity</Label>
+                                  {/* Then update the ticket selection UI to show a loading indicator when changing quantity */}
+                                  {/* Find the quantity selector and update it: */}
+                                  <Select
+                                    value={quantity.toString()}
+                                    onValueChange={(value) => {
+                                      setIsTicketLoading(true);
+                                      setQuantity(Number.parseInt(value));
+                                      // Use setTimeout to give a small delay for UI to update
+                                      setTimeout(
+                                        () => setIsTicketLoading(false),
+                                        300
+                                      );
+                                    }}
+                                  >
+                                    <SelectTrigger id="quantity">
+                                      <SelectValue placeholder="Select quantity" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {ticket.offers[0].sellableQuantities
+                                        ? ticket.offers[0].sellableQuantities
+                                            .slice(
+                                              0,
+                                              Math.min(
+                                                10,
+                                                ticket.offers[0]
+                                                  .sellableQuantities.length
+                                              )
+                                            )
+                                            .map((qty: number) => (
+                                              <SelectItem
+                                                key={qty}
+                                                value={qty.toString()}
+                                              >
+                                                {qty}
+                                              </SelectItem>
+                                            ))
+                                        : Array.from(
+                                            { length: 10 },
+                                            (_, i) => i + 1
+                                          ).map((qty) => (
+                                            <SelectItem
+                                              key={qty}
+                                              value={qty.toString()}
+                                            >
+                                              {qty}
+                                            </SelectItem>
+                                          ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
                               </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                            )}
+                          </div>
+                        )
+                      )}
                     </div>
                   </TabsContent>
 
@@ -609,7 +736,10 @@ export default function EventPage() {
                       <div className="space-y-4">
                         <div>
                           <Label htmlFor="section">Section</Label>
-                          <Select value={selectedSection} onValueChange={handleSectionChange}>
+                          <Select
+                            value={selectedSection}
+                            onValueChange={handleSectionChange}
+                          >
                             <SelectTrigger id="section">
                               <SelectValue placeholder="Select section" />
                             </SelectTrigger>
@@ -626,7 +756,10 @@ export default function EventPage() {
                         {selectedSection && (
                           <div>
                             <Label htmlFor="row">Row</Label>
-                            <Select value={selectedRow} onValueChange={handleRowChange}>
+                            <Select
+                              value={selectedRow}
+                              onValueChange={handleRowChange}
+                            >
                               <SelectTrigger id="row">
                                 <SelectValue placeholder="Select row" />
                               </SelectTrigger>
@@ -649,7 +782,11 @@ export default function EventPage() {
                               {getAvailableSeats().map((seat) => (
                                 <Badge
                                   key={seat}
-                                  variant={selectedSeats.includes(seat) ? "default" : "outline"}
+                                  variant={
+                                    selectedSeats.includes(seat)
+                                      ? "default"
+                                      : "outline"
+                                  }
                                   className="cursor-pointer"
                                   onClick={(e) => handleSeatClick(seat, e)}
                                 >
@@ -657,7 +794,9 @@ export default function EventPage() {
                                 </Badge>
                               ))}
                             </div>
-                            <p className="text-xs text-muted-foreground mt-2">Click to select up to {quantity} seats</p>
+                            <p className="text-xs text-muted-foreground mt-2">
+                              Click to select up to {quantity} seats
+                            </p>
                           </div>
                         )}
 
@@ -675,13 +814,17 @@ export default function EventPage() {
                         )}
                       </div>
                     ) : (
-                      <div className="text-center py-4 text-gray-500">Please select a ticket type first</div>
+                      <div className="text-center py-4 text-gray-500">
+                        Please select a ticket type first
+                      </div>
                     )}
                   </TabsContent>
                 </Tabs>
               ) : (
                 <div className="text-center py-8">
-                  <p className="text-gray-500 mb-4">No ticket information available</p>
+                  <p className="text-gray-500 mb-4">
+                    No ticket information available
+                  </p>
                   <Button asChild variant="outline">
                     <Link href="/">
                       <ArrowLeft className="mr-2 h-4 w-4" />
@@ -691,66 +834,80 @@ export default function EventPage() {
                 </div>
               )}
 
-              {selectedTicket && selectedTicket.offers && selectedTicket.offers[0] && (
-                <div className="space-y-4">
-                  <div className="flex justify-between text-sm">
-                    <span>
-                      Price ({quantity} x {formatCurrency(selectedTicket.offers[0].faceValue || 0)})
-                    </span>
-                    <span>{formatCurrency((selectedTicket.offers[0].faceValue || 0) * quantity)}</span>
-                  </div>
+              {selectedTicket &&
+                selectedTicket.offers &&
+                selectedTicket.offers[0] && (
+                  <div className="space-y-4">
+                    <div className="flex justify-between text-sm">
+                      <span>
+                        Price ({quantity} x{" "}
+                        {formatCurrency(
+                          selectedTicket.offers[0].faceValue || 0
+                        )}
+                        )
+                      </span>
+                      <span>
+                        {formatCurrency(
+                          (selectedTicket.offers[0].faceValue || 0) * quantity
+                        )}
+                      </span>
+                    </div>
 
-                  <div className="flex justify-between text-sm">
-                    <span>Fees</span>
-                    <span>
-                      {formatCurrency(
-                        selectedTicket.offers[0].charges.reduce(
-                          (total: number, charge: any) => total + (charge.amount || 0),
-                          0,
-                        ) * quantity || 0,
+                    <div className="flex justify-between text-sm">
+                      <span>Fees</span>
+                      <span>
+                        {formatCurrency(
+                          selectedTicket.offers[0].charges.reduce(
+                            (total: number, charge: any) =>
+                              total + (charge.amount || 0),
+                            0
+                          ) * quantity || 0
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between font-semibold pt-2 border-t">
+                      <span>Total</span>
+                      <span>
+                        {formatCurrency(
+                          ((selectedTicket.offers[0].faceValue || 0) +
+                            (selectedTicket.offers[0].charges.reduce(
+                              (total: number, charge: any) =>
+                                total + (charge.amount || 0),
+                              0
+                            ) || 0)) *
+                            quantity
+                        )}
+                      </span>
+                    </div>
+
+                    {/* Then update the Add to Cart button to show the ticket loading state: */}
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      onClick={handleAddToCart}
+                      disabled={
+                        !selectedTicket || quantity < 1 || isTicketLoading
+                      }
+                    >
+                      {isTicketLoading ? (
+                        <div className="flex items-center">
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Updating...
+                        </div>
+                      ) : (
+                        <>
+                          <ShoppingCart className="mr-2 h-5 w-5" />
+                          Add to Cart
+                        </>
                       )}
-                    </span>
+                    </Button>
                   </div>
-
-                  <div className="flex justify-between font-semibold pt-2 border-t">
-                    <span>Total</span>
-                    <span>
-                      {formatCurrency(
-                        ((selectedTicket.offers[0].faceValue || 0) +
-                          (selectedTicket.offers[0].charges.reduce(
-                            (total: number, charge: any) => total + (charge.amount || 0),
-                            0,
-                          ) || 0)) *
-                        quantity,
-                      )}
-                    </span>
-                  </div>
-
-                  {/* Then update the Add to Cart button to show the ticket loading state: */}
-                  <Button
-                    className="w-full"
-                    size="lg"
-                    onClick={handleAddToCart}
-                    disabled={!selectedTicket || quantity < 1 || isTicketLoading}
-                  >
-                    {isTicketLoading ? (
-                      <div className="flex items-center">
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Updating...
-                      </div>
-                    ) : (
-                      <>
-                        <ShoppingCart className="mr-2 h-5 w-5" />
-                        Add to Cart
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
+                )}
             </CardContent>
           </Card>
         </div>
       </div>
     </div>
-  )
+  );
 }

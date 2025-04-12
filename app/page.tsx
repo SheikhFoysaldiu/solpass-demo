@@ -21,6 +21,7 @@ import { programId } from "@/lib/contants";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useProgram } from "@/lib/hooks/useProgram";
+import { WalletModal } from "@/components/providers/wallate-modal";
 
 export default function Home() {
   const [events, setEvents] = useState<EventType[]>([]);
@@ -148,15 +149,14 @@ export default function Home() {
       chainData: chainEvent,
     };
   });
-  console.log("eh", enhancedEvents, chainEventsByIdMap, events);
 
   return (
     <main className="container mx-auto py-8 px-4">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Event Ticketing</h1>
         <div className="flex items-center gap-4">
-          <WalletButton />
           <div className="flex items-center gap-2">
+            <WalletModal />
             <CartSheet open={cartSheetOpen} onOpenChange={setCartSheetOpen}>
               <Button
                 variant="outline"
