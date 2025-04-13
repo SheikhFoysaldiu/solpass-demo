@@ -1,192 +1,242 @@
-"use client";
+"use client"
 
-import { CartSheet } from "@/components/cart-sheet";
-import { CreateEventForm } from "@/components/create-event-form";
-import { EventCard, RoyaltyFormValues } from "@/components/event-card";
-import ChainEvents, { useChainEvents } from "@/components/events/chain-events";
-import { WalletModal } from "@/components/providers/wallate-modal";
-import { Button } from "@/components/ui/button";
-import { useCart } from "@/hooks/use-cart";
-import { useToast } from "@/hooks/use-toast";
-import { fetchEvents } from "@/lib/api-client";
-import { usePrivateKeyAnchorWallet, useProgram } from "@/lib/hooks/useProgram";
-import { EventType, generateDummyEvent } from "@/lib/mock-data";
-import { createRoyaltiesString, extractRoyaltiesFromString } from "@/lib/utils";
-import { useWalletStore } from "@/store/useWalletStore";
-import { BN } from "@coral-xyz/anchor";
-import {
-  AnchorWallet,
-  useAnchorWallet,
-  useConnection,
-} from "@solana/wallet-adapter-react";
-import { PublicKey, SystemProgram } from "@solana/web3.js";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, PlusCircle, ShoppingCart, Ticket } from "lucide-react";
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import { CartSheet } from "@/components/cart-sheet"
+import { CreateEventForm } from "@/components/create-event-form"
+import { EventCard } from "@/components/event-card"
+import ChainEvents, { useChainEvents } from "@/components/events/chain-events"
+import { WalletModal } from "@/components/providers/wallate-modal"
+import { Button } from "@/components/ui/button"
+import { useCart } from "@/hooks/use-cart"
+import { useToast } from "@/hooks/use-toast"
+import { fetchEvents, createEvent, updateEvent } from "@/lib/api-client"
+import { usePrivateKeyAnchorWallet, useProgram } from "@/lib/hooks/useProgram"
+import { createRoyaltiesString } from "@/lib/utils"
+import { useTeamStore } from "@/store/useTeamStore"
+import { useWalletStore } from "@/store/useWalletStore"
+import { BN } from "@coral-xyz/anchor"
+import { type AnchorWallet, useAnchorWallet, useConnection } from "@solana/wallet-adapter-react"
+import { PublicKey, SystemProgram } from "@solana/web3.js"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { Loader2, PlusCircle, ShoppingCart, Ticket } from "lucide-react"
+import Link from "next/link"
+import { useEffect, useState } from "react"
+import type { Event, RoyaltyFormValues } from "@/types"
 
-export default function Home() {
-  const [events, setEvents] = useState<EventType[]>([]);
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const { cart } = useCart();
-  const { toast } = useToast();
-  const [cartSheetOpen, setCartSheetOpen] = useState(false);
-  const totalItems = cart.reduce((total, item) => total + item.quantity, 0);
+export default function EventsPage() {
+  const [events, setEvents] = useState<Event[]>([])
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const { cart } = useCart()
+  const { toast } = useToast()
+  const [cartSheetOpen, setCartSheetOpen] = useState(false)
+  const totalItems = cart.reduce((total, item) => total + item.quantity, 0)
+  const { team } = useTeamStore()
 
-  const { data: chainEvents = [], isLoading: isLoadingChainEvents } =
-    useChainEvents();
-  const { connection } = useConnection();
-  const w = useAnchorWallet();
-  const queryClient = useQueryClient();
+  const { data: chainEvents = [], isLoading: isLoadingChainEvents } = useChainEvents()
+  const { connection } = useConnection()
+  const w = useAnchorWallet()
+  const queryClient = useQueryClient()
 
-  const program = useProgram();
-  const privateKeyWallet = usePrivateKeyAnchorWallet();
-  const { privateKey } = useWalletStore();
+  const program = useProgram()
+  const privateKeyWallet = usePrivateKeyAnchorWallet()
+  const { privateKey } = useWalletStore()
 
+  // Safely create a map of chain events
   const chainEventsByIdMap = new Map(
-    chainEvents.map((event) => [event.account.eventId, event])
-  );
+    Array.isArray(chainEvents)
+      ? chainEvents
+        .filter((event) => event && event.account && typeof event.account.eventId === "string")
+        .map((event) => [event.account.eventId, event])
+      : [],
+  )
 
   const initializeEventMutation = useMutation({
     mutationFn: async ({
       event,
       royalties,
     }: {
-      event: EventType;
-      royalties: RoyaltyFormValues;
+      event: Event
+      royalties: RoyaltyFormValues
     }) => {
-      if (!program) throw new Error("Program not found");
+      if (!program) {
+        console.error("Program not found")
+        throw new Error("Program not found")
+      }
 
-      let wallet: AnchorWallet | undefined = undefined;
+      let wallet: AnchorWallet | undefined = undefined
 
       if (w) {
-        wallet = w;
-      } else {
-        if (privateKey && privateKeyWallet) {
-          wallet = privateKeyWallet.wallet;
-        }
+        wallet = w
+      } else if (privateKey && privateKeyWallet && privateKeyWallet.wallet) {
+        wallet = privateKeyWallet.wallet
       }
 
       if (!wallet) {
-        return null;
+        console.error("No wallet available")
+        throw new Error("No wallet available")
       }
 
-      const [eventPda] = PublicKey.findProgramAddressSync(
-        [
-          Buffer.from("EVENT_STATE"),
-          wallet.publicKey.toBuffer(),
-          Buffer.from(event.id),
-        ],
-        program.programId
-      );
-
-      // Example usage
-      const royaltiesString = createRoyaltiesString(royalties);
-      console.log(royaltiesString);
-
-      const eventDate = new Date(event.date).getTime() / 1000;
-      const ticketPriceLamports = 200000;
-
       try {
+        // Safely create the event PDA
+        let eventPda: PublicKey
+        try {
+          const [pda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("EVENT_STATE"), wallet.publicKey.toBuffer(), Buffer.from(event.id)],
+            program.programId,
+          )
+          eventPda = pda
+        } catch (error) {
+          console.error("Error creating event PDA:", error)
+          throw new Error("Failed to create event PDA")
+        }
+
+        // Create royalties string
+        const royaltiesString = createRoyaltiesString(royalties)
+        console.log("Royalties string:", royaltiesString)
+
+        const eventDate = new Date(event.date).getTime() / 1000
+        const ticketPriceLamports = 200000
+
         const tx = await program.methods
           .createEvent(
             event.id,
             event.name,
-            event.description || "A littet description",
+            event.description || "A little description",
             royaltiesString,
-            event.venue || "A veno",
+            event.venue || "A venue",
             new BN(eventDate),
-            new BN(event.ticketTypes.length),
-            new BN(ticketPriceLamports)
+            new BN(event.ticketTypes ? event.ticketTypes.length : 1),
+            new BN(ticketPriceLamports),
           )
           .accounts({
             eventAccount: eventPda,
             authority: wallet.publicKey,
             systemProgram: SystemProgram.programId,
           })
-          .rpc();
+          .rpc()
 
-        return tx;
+        // Update the event in the database with the chain event key
+        if (event.id) {
+          await updateEvent(event.id, {
+            chainEventKey: eventPda.toString(),
+          })
+        }
+
+        return {
+          tx,
+          eventPda: eventPda.toString(),
+        }
       } catch (e) {
-        console.error("Error initializing event on blockchain:", e);
-        throw new Error("Transaction failed");
+        console.error("Error initializing event on blockchain:", e)
+        throw new Error("Transaction failed: " + (e instanceof Error ? e.message : String(e)))
       }
     },
-    onSuccess: (_, { event }) => {
+    onSuccess: async (result, { event }) => {
       toast({
         title: "Event initialized on blockchain",
         description: `${event.name} has been successfully initialized on the blockchain.`,
-      });
-      queryClient.invalidateQueries({ queryKey: ["chainEvents"] });
+      })
+
+      // Update the events list with the chain event key
+      setEvents((prevEvents) =>
+        prevEvents.map((e) => (e.id === event.id ? { ...e, chainEventKey: result.eventPda } : e)),
+      )
+
+      queryClient.invalidateQueries({ queryKey: ["chainEvents"] })
     },
     onError: (error) => {
-      console.error("Error initializing event on blockchain:", error);
+      console.error("Error initializing event on blockchain:", error)
       toast({
         title: "Initialization failed",
-        description:
-          "Failed to initialize event on blockchain. Please try again.",
+        description: "Failed to initialize event on blockchain. Please try again.",
         variant: "destructive",
-      });
+      })
     },
-  });
+  })
 
   useEffect(() => {
     const fetchEventsData = async () => {
+      if (!team?.id) return
+
       try {
-        setLoading(true);
-        const eventsData = await fetchEvents();
+        setLoading(true)
+        // Fetch events for the current team
+        const eventsData = await fetchEvents(team.id)
 
-        const validEvents = Array.isArray(eventsData)
-          ? eventsData.filter(
-              (event) => event && typeof event === "object" && "id" in event
-            )
-          : [];
-
-        if (validEvents.length > 0) {
-          setEvents(validEvents);
+        if (Array.isArray(eventsData) && eventsData.length > 0) {
+          setEvents(eventsData)
         } else {
-          const dummyEvent = generateDummyEvent(50);
-          setEvents([dummyEvent]);
+          setEvents([])
         }
       } catch (error) {
-        console.error("Error fetching events:", error);
-        const dummyEvent = generateDummyEvent(50);
-        setEvents([dummyEvent]);
+        console.error("Error fetching events:", error)
+        setEvents([])
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
+    }
 
-    fetchEventsData();
-  }, []);
+    fetchEventsData()
+  }, [team?.id])
 
-  const handleCreateEvent = (newEvent: EventType) => {
-    setEvents((prevEvents) => [...prevEvents, newEvent]);
-    setShowCreateForm(false);
+  const handleCreateEvent = async (newEvent: Event) => {
 
-    toast({
-      title: "Event created",
-      description: `${newEvent.name} has been created successfully.`,
-    });
-  };
+    if (!team?.id) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to create an event",
+        variant: "destructive",
+      })
+      return
+    }
+    console.log("Team ID:", team.id)
 
-  const handleInitializeEvent = (
-    event: EventType,
-    royalties: RoyaltyFormValues
-  ) => {
-    console.log("Initializing event:", event, royalties);
-    initializeEventMutation.mutate({ event, royalties });
-  };
+    try {
+      console.log("Team ID:", team.id)
+      // Add team ID to the event data
+      const eventData = {
+        ...newEvent,
+        teamId: team.id,
+      }
+      console.log("Creating event with data:", eventData)
+
+      // Create event in the database
+      const createdEvent = await createEvent({
+        ...newEvent,
+        teamId: team.id,
+      })
+
+      // Update the events list
+      setEvents((prevEvents) => [...prevEvents, createdEvent])
+      setShowCreateForm(false)
+
+      toast({
+        title: "Event created",
+        description: `${createdEvent.name} has been created successfully.`,
+      })
+    } catch (error) {
+      console.error("Error creating event:", error)
+      toast({
+        title: "Error",
+        description: "Failed to create event. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleInitializeEvent = (event: Event, royalties: RoyaltyFormValues) => {
+    console.log("Initializing event:", event, royalties)
+    initializeEventMutation.mutate({ event, royalties })
+  }
 
   const enhancedEvents = events.map((event) => {
-    const chainEvent = chainEventsByIdMap.get(event.id);
+    const chainEvent = event.chainEventKey ? chainEventsByIdMap.get(event.id) : null
     return {
       ...event,
-      onChain: !!chainEvent,
+      onChain: !!event.chainEventKey,
       chainData: chainEvent,
-    };
-  });
+    }
+  })
 
   return (
     <main className="container mx-auto py-8 px-4">
@@ -196,12 +246,7 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <WalletModal />
             <CartSheet open={cartSheetOpen} onOpenChange={setCartSheetOpen}>
-              <Button
-                variant="outline"
-                size="icon"
-                className="relative"
-                onClick={() => setCartSheetOpen(true)}
-              >
+              <Button variant="outline" size="icon" className="relative" onClick={() => setCartSheetOpen(true)}>
                 <ShoppingCart className="h-5 w-5" />
                 {totalItems > 0 && (
                   <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
@@ -226,10 +271,7 @@ export default function Home() {
             </Button>
           </div>
 
-          <Button
-            onClick={() => setShowCreateForm(!showCreateForm)}
-            className="flex items-center gap-2"
-          >
+          <Button onClick={() => setShowCreateForm(!showCreateForm)} className="flex items-center gap-2">
             <PlusCircle size={18} />
             {showCreateForm ? "Cancel" : "Create Event"}
           </Button>
@@ -250,9 +292,7 @@ export default function Home() {
       ) : events.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-lg text-gray-500 mb-4">No events found</p>
-          <Button onClick={() => setShowCreateForm(true)}>
-            Create Your First Event
-          </Button>
+          <Button onClick={() => setShowCreateForm(true)}>Create Your First Event</Button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -263,20 +303,17 @@ export default function Home() {
                 event={event}
                 isOnChain={event.onChain}
                 chainData={event.chainData}
-                onInitialize={(royalties) =>
-                  handleInitializeEvent(event, royalties)
-                }
+                onInitialize={(royalties) => handleInitializeEvent(event, royalties)}
                 isInitializing={
-                  initializeEventMutation.isPending &&
-                  initializeEventMutation.variables.event?.id === event.id
+                  initializeEventMutation.isPending && initializeEventMutation.variables?.event?.id === event.id
                 }
                 walletConnected={!!(w ?? privateKeyWallet)}
               />
-            ) : null
+            ) : null,
           )}
         </div>
       )}
       <ChainEvents />
     </main>
-  );
+  )
 }

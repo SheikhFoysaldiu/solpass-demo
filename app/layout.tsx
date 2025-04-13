@@ -1,28 +1,23 @@
-"use client";
-import type React from "react";
+"use client"
+import type React from "react"
 
-import { Toaster } from "@/components/toaster";
-import { CartProvider } from "@/hooks/use-cart";
-import { Inter } from "next/font/google";
-import {
-  useQuery,
-  useMutation,
-  useQueryClient,
-  QueryClient,
-  QueryClientProvider,
-} from "@tanstack/react-query";
+import { Toaster } from "@/components/toaster"
+import { CartProvider } from "@/hooks/use-cart"
+import { Inter } from "next/font/google"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { TeamHeader } from "@/components/team-header"
 
 // Create a client
-const queryClient = new QueryClient();
-import "./globals.css";
-import { SolanaProvider } from "@/components/providers/solana-provider";
+const queryClient = new QueryClient()
+import "./globals.css"
+import { SolanaProvider } from "@/components/providers/solana-provider"
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"] })
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: React.ReactNode
 }>) {
   return (
     <html lang="en">
@@ -30,6 +25,7 @@ export default function RootLayout({
         <QueryClientProvider client={queryClient}>
           <SolanaProvider>
             <CartProvider>
+              <TeamHeader />
               {children}
               <Toaster />
             </CartProvider>
@@ -37,5 +33,9 @@ export default function RootLayout({
         </QueryClientProvider>
       </body>
     </html>
-  );
+  )
 }
+
+
+import './globals.css'
+

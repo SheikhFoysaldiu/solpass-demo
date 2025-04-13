@@ -72,8 +72,42 @@ export type ResaleTicket = {
   ticket?: Ticket
 }
 
+export type Cart = {
+  id: string
+  createdAt: Date
+  updatedAt: Date
+  teamId: string
+  items: CartItem[]
+}
+
+export type CartItem = {
+  id: string
+  eventId: string
+  ticketTypeId: string
+  quantity: number
+  price: number
+  fees: number
+  section: string
+  row: string
+  seats: number[]
+  isResale: boolean
+  resaleId?: string
+  createdAt: Date
+  updatedAt: Date
+  cartId: string
+}
+
+export type Order = {
+  id: string
+  createdAt: Date
+  updatedAt: Date
+  teamId: string
+  total: number
+  status: string
+}
+
 // Frontend types for cart items
-export interface CartItem {
+export interface FrontendCartItem {
   eventId: string
   eventName: string
   ticketTypeId: string

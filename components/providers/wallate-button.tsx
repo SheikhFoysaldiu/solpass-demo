@@ -1,14 +1,12 @@
-"use client";
+"use client"
 
-import dynamic from "next/dynamic";
-import type { CSSProperties } from "react";
+import dynamic from "next/dynamic"
+import type { CSSProperties } from "react"
 
 // Dynamically import WalletMultiButton to avoid SSR issues
 export const WalletButton = dynamic(
   async () => {
-    const { WalletMultiButton } = await import(
-      "@solana/wallet-adapter-react-ui"
-    );
+    const { WalletMultiButton } = await import("@solana/wallet-adapter-react-ui")
 
     // Return a styled version of the WalletMultiButton
     return function StyledWalletButton(props: any) {
@@ -27,12 +25,11 @@ export const WalletButton = dynamic(
         alignItems: "center",
         justifyContent: "center",
         gap: "0.5rem",
-        boxShadow:
-          "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-      };
+        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+      }
 
-      return <WalletMultiButton {...props} style={style} />;
-    };
+      return <WalletMultiButton {...props} style={style} />
+    }
   },
-  { ssr: false }
-);
+  { ssr: false },
+)

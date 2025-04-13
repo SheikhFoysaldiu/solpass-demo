@@ -1,4 +1,4 @@
-import { IdlType } from "@coral-xyz/anchor/dist/cjs/idl";
+import type { IdlType } from "@coral-xyz/anchor/dist/cjs/idl"
 
 export const IDL = {
   version: "0.1.0",
@@ -100,50 +100,50 @@ export const IDL = {
       msg: "Ticket not available",
     },
   ],
-};
+}
 
 interface IdlField {
-  name: string;
-  type: IdlType;
+  name: string
+  type: IdlType
 }
 
 interface IdlAccountItem {
-  name: string;
-  isMut: boolean;
-  isSigner: boolean;
+  name: string
+  isMut: boolean
+  isSigner: boolean
 }
 
 interface IdlInstruction {
-  name: string;
-  accounts: IdlAccountItem[];
-  args: IdlField[];
+  name: string
+  accounts: IdlAccountItem[]
+  args: IdlField[]
 }
 
 interface IdlConstant {
-  name: string;
-  type: string;
-  value: string;
+  name: string
+  type: string
+  value: string
 }
 
 interface IdlAccount {
-  name: string;
+  name: string
   type: {
-    kind: "struct";
-    fields: IdlField[];
-  };
+    kind: "struct"
+    fields: IdlField[]
+  }
 }
 
 interface IdlError {
-  code: number;
-  name: string;
-  msg: string;
+  code: number
+  name: string
+  msg: string
 }
 
 export interface IDLType {
-  version: string;
-  name: string;
-  constants?: IdlConstant[];
-  instructions: IdlInstruction[];
-  accounts?: IdlAccount[];
-  errors?: IdlError[];
+  version: string
+  name: string
+  constants?: IdlConstant[]
+  instructions: IdlInstruction[]
+  accounts?: IdlAccount[]
+  errors?: IdlError[]
 }

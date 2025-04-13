@@ -1,86 +1,103 @@
-import { AnchorProvider, Program, setProvider } from "@coral-xyz/anchor";
-import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
-import { PublicKey } from "@solana/web3.js";
-
-import { programId } from "@/lib/contants";
-import { IDLType } from "@/lib/idl";
-import idl from "@/lib/idl.json";
-import { useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
-import { Button } from "../ui/button";
-import { usePrivateKeyAnchorWallet, useProgram } from "@/lib/hooks/useProgram";
-import { useWalletStore } from "@/store/useWalletStore";
+"use client"
+import { useAnchorWallet } from "@solana/wallet-adapter-react"
+import type { PublicKey } from "@solana/web3.js"
+import { useQuery } from "@tanstack/react-query"
+import { Loader2 } from "lucide-react"
+import { Button } from "../ui/button"
+import { usePrivateKeyAnchorWallet, useProgram } from "@/lib/hooks/useProgram"
+import { useWalletStore } from "@/store/useWalletStore"
+import type { AnchorWallet } from "@solana/wallet-adapter-base"
 
 export type ChainEvent = {
-  publicKey: PublicKey;
+  publicKey: PublicKey
   account: {
-    authority: PublicKey;
-    eventId: string;
-    name: string;
-    description: string;
-    venue: string;
-    date: number;
-    totalTickets: bigint;
-    ticketsSold: bigint;
-    ticketPrice: bigint;
-    isActive: boolean;
-  };
-};
+    authority: PublicKey
+    eventId: string
+    name: string
+    description: string
+    venue: string
+    date: number
+    totalTickets: bigint
+    ticketsSold: bigint
+    ticketPrice: bigint
+    isActive: boolean
+  }
+}
 
 export function useChainEvents() {
-  const wallet = useAnchorWallet();
-  const program = useProgram();
-  const privateKeyWallet = usePrivateKeyAnchorWallet();
-  const { privateKey } = useWalletStore();
+  const wallet = useAnchorWallet()
+  const program = useProgram()
+  const privateKeyWallet = usePrivateKeyAnchorWallet()
+  const { privateKey } = useWalletStore()
 
   const fetchChainEvents = async () => {
-    // No wallet and no program, return empty
-    if (!program) return [];
+    // No program, return empty
+    if (!program) {
+      console.log("No program available, skipping chain events fetch")
+      return []
+    }
 
-    // If we have a regular wallet, use it
+    // Determine which wallet to use
+    let activeWallet: AnchorWallet | null = null
+
     if (wallet) {
-      const events = await program.account.eventAccount.all([
-        {
-          memcmp: {
-            offset: 8,
-            bytes: wallet.publicKey.toBase58(),
-          },
-        },
-      ]);
-      console.log("Using regular wallet to fetch events:", events);
-      return events as ChainEvent[];
-    }
-    // If we have a private key wallet, use it as fallback
-    else if (privateKeyWallet && privateKeyWallet.wallet) {
-      const events = await program.account.eventAccount.all([
-        {
-          memcmp: {
-            offset: 8,
-            bytes: privateKeyWallet.wallet.publicKey.toBase58(),
-          },
-        },
-      ]);
-      console.log("Using private key wallet to fetch events:", events);
-      return events as ChainEvent[];
+      activeWallet = wallet
+    } else if (privateKeyWallet && privateKeyWallet.wallet) {
+      activeWallet = privateKeyWallet.wallet
     }
 
-    // No wallet available
-    return [];
-  };
+    // If we don't have a wallet, return empty
+    if (!activeWallet) {
+      console.log("No wallet available, skipping chain events fetch")
+      return []
+    }
+
+    try {
+      // Safely get the public key as a string
+      const publicKeyString = activeWallet.publicKey.toBase58()
+
+      // Fetch events
+      try {
+        // Check if program.account exists and has the eventAccount property
+        if (!program.account || !program.account.eventAccount) {
+          console.error("Program account or eventAccount not available")
+          return []
+        }
+
+        const events = await program.account.eventAccount.all([
+          {
+            memcmp: {
+              offset: 8,
+              bytes: publicKeyString,
+            },
+          },
+        ])
+        console.log("Fetched events:", events)
+        return events as ChainEvent[]
+      } catch (error) {
+        console.error("Error fetching events:", error)
+        return []
+      }
+    } catch (error) {
+      console.error("Error in fetchChainEvents:", error)
+      return []
+    }
+  }
+
+  // Only enable the query if we have a program and a wallet
+  const hasWallet = !!(wallet || (privateKeyWallet && privateKey))
+  const queryEnabled = !!program && hasWallet
 
   return useQuery({
-    queryKey: [
-      "chainEvents",
-      wallet?.publicKey?.toBase58() ||
-        privateKeyWallet?.wallet?.publicKey?.toBase58(),
-    ],
+    queryKey: ["chainEvents", wallet?.publicKey?.toBase58() || privateKeyWallet?.wallet?.publicKey?.toBase58()],
     queryFn: fetchChainEvents,
-    enabled: !!(program && (wallet || (privateKeyWallet && privateKey))),
-  });
+    enabled: queryEnabled,
+    retry: false, // Don't retry on failure to avoid repeated errors
+  })
 }
 
 export default function ChainEvents() {
-  const { data: events = [], isLoading, refetch } = useChainEvents();
+  const { data: events = [], isLoading, refetch, isError } = useChainEvents()
 
   return (
     <div className="mt-12 border-t pt-8">
@@ -92,29 +109,23 @@ export default function ChainEvents() {
         </Button>
       </div>
 
-      {events.length > 0 ? (
+      {isError ? (
+        <div className="p-4 border border-red-200 rounded-lg bg-red-50 text-red-700">
+          <p>Error loading blockchain events. Please try again later.</p>
+        </div>
+      ) : events.length > 0 ? (
         <div className="grid grid-cols-1 gap-4">
           {events.map((event) => (
-            <div
-              key={event.publicKey.toBase58()}
-              className="p-4 border rounded-lg"
-            >
+            <div key={event.publicKey.toBase58()} className="p-4 border rounded-lg">
               <h3 className="font-semibold">{event.account.name}</h3>
-              <p className="text-sm text-gray-500 truncate">
-                {event.account.description}
-              </p>
+              <p className="text-sm text-gray-500 truncate">{event.account.description}</p>
               <div className="flex justify-between mt-2 text-sm">
+                <span>Price: {Number(event.account.ticketPrice) / 1000000000} SOL</span>
                 <span>
-                  Price: {Number(event.account.ticketPrice) / 1000000000} SOL
-                </span>
-                <span>
-                  Sold: {Number(event.account.ticketsSold)}/
-                  {Number(event.account.totalTickets)}
+                  Sold: {Number(event.account.ticketsSold)}/{Number(event.account.totalTickets)}
                 </span>
               </div>
-              <p className="text-xs mt-2 text-gray-400">
-                ID: {event.account.eventId}
-              </p>
+              <p className="text-xs mt-2 text-gray-400">ID: {event.account.eventId}</p>
             </div>
           ))}
         </div>
@@ -122,5 +133,5 @@ export default function ChainEvents() {
         <p className="text-gray-500">No events found on blockchain</p>
       )}
     </div>
-  );
+  )
 }

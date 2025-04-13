@@ -1,0 +1,134 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Team {
+  id        String   @id @default(cuid())
+  name      String
+  publicKey String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  events    Event[]
+  tickets   Ticket[]
+  carts     Cart[]
+  orders    Order[]
+}
+
+model Event {
+  id                String         @id @default(cuid())
+  name              String
+  date              DateTime
+  venue             String
+  description       String?
+  image             String?
+  onsale            DateTime
+  offsale           DateTime
+  ticketLimit       Int            @default(10)
+  royaltyPercentage Float          @default(5)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  team              Team           @relation(fields: [teamId], references: [id])
+  teamId            String
+  chainEventKey     String?
+  ticketTypes       TicketType[]
+  tickets           Ticket[]
+  resaleTickets     ResaleTicket[]
+  cartItems         CartItem[]
+}
+
+model TicketType {
+  id        String     @id @default(cuid())
+  name      String
+  price     Float
+  fees      Float
+  available Int
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  event     Event      @relation(fields: [eventId], references: [id])
+  eventId   String
+  tickets   Ticket[]
+  cartItems CartItem[]
+}
+
+model Ticket {
+  id           String        @id @default(cuid())
+  orderId      String
+  section      String
+  row          String
+  seat         Int?
+  purchaseDate DateTime      @default(now())
+  price        Float
+  isResale     Boolean       @default(false)
+  isListed     Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  event        Event         @relation(fields: [eventId], references: [id])
+  eventId      String
+  ticketType   TicketType    @relation(fields: [ticketTypeId], references: [id])
+  ticketTypeId String
+  owner        Team          @relation(fields: [ownerId], references: [id])
+  ownerId      String
+  resaleTicket ResaleTicket?
+}
+
+model ResaleTicket {
+  id                String   @id @default(cuid())
+  price             Float
+  originalPrice     Float
+  royaltyPercentage Float
+  royaltyFee        Float
+  serviceFee        Float
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  ticket            Ticket   @relation(fields: [ticketId], references: [id])
+  ticketId          String   @unique
+  event             Event    @relation(fields: [eventId], references: [id])
+  eventId           String
+}
+
+model Cart {
+  id        String     @id @default(cuid())
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  team      Team       @relation(fields: [teamId], references: [id])
+  teamId    String
+  items     CartItem[]
+}
+
+model CartItem {
+  id           String     @id @default(cuid())
+  eventId      String
+  event        Event      @relation(fields: [eventId], references: [id])
+  ticketTypeId String
+  ticketType   TicketType @relation(fields: [ticketTypeId], references: [id])
+  quantity     Int
+  price        Float
+  fees         Float
+  section      String
+  row          String
+  seats        Int[]
+  isResale     Boolean    @default(false)
+  resaleId     String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  cart         Cart       @relation(fields: [cartId], references: [id])
+  cartId       String
+}
+
+model Order {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  team      Team     @relation(fields: [teamId], references: [id])
+  teamId    String
+  total     Float
+  status    String
+}

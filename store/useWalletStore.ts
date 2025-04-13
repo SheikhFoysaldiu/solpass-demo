@@ -1,15 +1,15 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import { Keypair } from "@solana/web3.js";
-import { bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
+import { create } from "zustand"
+import { persist } from "zustand/middleware"
+import { Keypair } from "@solana/web3.js"
+import { bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes"
 
 type WalletState = {
-  privateKey: string | null;
-  getKeypair: () => Keypair | null;
-  setPrivateKey: (privateKey: string) => void;
-  clearWallet: () => void;
-  walletType: "privateKey" | "walletAdapter" | null;
-};
+  privateKey: string | null
+  getKeypair: () => Keypair | null
+  setPrivateKey: (privateKey: string) => void
+  clearWallet: () => void
+  walletType: "privateKey" | "walletAdapter" | null
+}
 
 export const useWalletStore = create<WalletState>()(
   persist(
@@ -18,24 +18,24 @@ export const useWalletStore = create<WalletState>()(
       walletType: null,
 
       getKeypair: () => {
-        const { privateKey } = get();
-        if (!privateKey) return null;
+        const { privateKey } = get()
+        if (!privateKey) return null
 
         try {
-          const secretKey = bs58.decode(privateKey);
-          return Keypair.fromSecretKey(secretKey);
+          const secretKey = bs58.decode(privateKey)
+          return Keypair.fromSecretKey(secretKey)
         } catch (error) {
-          console.error("Failed to create keypair from private key:", error);
-          return null;
+          console.error("Failed to create keypair from private key:", error)
+          return null
         }
       },
 
       setPrivateKey: (privateKey: string) => {
-        set({ privateKey, walletType: "privateKey" });
+        set({ privateKey, walletType: "privateKey" })
       },
 
       clearWallet: () => {
-        set({ privateKey: null, walletType: null });
+        set({ privateKey: null, walletType: null })
       },
     }),
     {
@@ -45,6 +45,6 @@ export const useWalletStore = create<WalletState>()(
         privateKey: state.privateKey,
         walletType: state.walletType,
       }),
-    }
-  )
-);
+    },
+  ),
+)

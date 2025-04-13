@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -20,136 +21,44 @@ import { Ticket, ArrowLeft, Tag, Loader2 } from "lucide-react"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
-import { fetchMyTickets, listTicketForResale } from "@/lib/api-client"
-
-interface MyTicket {
-  id: string
-  orderId: string
-  eventId: string
-  eventName: string
-  eventDate: string
-  section: string
-  row: string
-  seat?: number
-  ticketType: string
-  purchaseDate: string
-  price: number
-  isResale: boolean
-  resalePrice?: number
-  isListed: boolean
-}
+import { fetchMyTickets, listTicketForResale, cancelResaleListing } from "@/lib/api-client"
+import { useTeamStore } from "@/store/useTeamStore"
 
 export default function MyTicketsPage() {
-  const [tickets, setTickets] = useState<MyTicket[]>([])
+  const [tickets, setTickets] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [resalePrice, setResalePrice] = useState<Record<string, number>>({})
   const [isResaleListing, setIsResaleListing] = useState<Record<string, boolean>>({})
   const { toast } = useToast()
+  const { team } = useTeamStore()
+  const router = useRouter()
 
   useEffect(() => {
+    if (!team?.id) {
+      router.push("/")
+      return
+    }
+
     const loadTickets = async () => {
       try {
         setLoading(true)
-        const myTickets = await fetchMyTickets()
+        const myTickets = await fetchMyTickets(team.id)
 
-        // Only set tickets if they exist from the API
         if (Array.isArray(myTickets) && myTickets.length > 0) {
           setTickets(myTickets)
         } else {
-          // Don't create dummy tickets by default
           setTickets([])
-
-          // Check if we have any tickets in localStorage from purchases
-          const purchasedTickets = localStorage.getItem("purchasedTickets")
-          if (purchasedTickets) {
-            try {
-              const parsedTickets = JSON.parse(purchasedTickets)
-              if (Array.isArray(parsedTickets) && parsedTickets.length > 0) {
-                setTickets(parsedTickets)
-              }
-            } catch (error) {
-              console.error("Failed to parse purchased tickets:", error)
-            }
-          }
         }
       } catch (error) {
         console.error("Error loading tickets:", error)
-        // Check localStorage for purchased tickets instead of creating dummy tickets
-        const purchasedTickets = localStorage.getItem("purchasedTickets")
-        if (purchasedTickets) {
-          try {
-            const parsedTickets = JSON.parse(purchasedTickets)
-            if (Array.isArray(parsedTickets) && parsedTickets.length > 0) {
-              setTickets(parsedTickets)
-            }
-          } catch (error) {
-            console.error("Failed to parse purchased tickets:", error)
-          }
-        }
+        setTickets([])
       } finally {
         setLoading(false)
       }
     }
 
     loadTickets()
-  }, [])
-
-  const createDummyTickets = (): MyTicket[] => {
-    // Get order ID from localStorage or create a new one
-    const orderId =
-      localStorage.getItem("orderId") ||
-      Math.floor(Math.random() * 1000000)
-        .toString()
-        .padStart(6, "0")
-
-    // Create 3 dummy tickets
-    return [
-      {
-        id: "ticket_" + Math.random().toString(36).substring(2, 10),
-        orderId,
-        eventId: "0B004D43F86C478F",
-        eventName: "Concert in the Park",
-        eventDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
-        section: "GA",
-        row: "GA",
-        ticketType: "General Admission",
-        purchaseDate: new Date().toISOString(),
-        price: 50.5,
-        isResale: false,
-        isListed: false,
-      },
-      {
-        id: "ticket_" + Math.random().toString(36).substring(2, 10),
-        orderId,
-        eventId: "0B004D43F86C478F",
-        eventName: "Concert in the Park",
-        section: "VIP",
-        row: "A",
-        seat: 12,
-        eventDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        ticketType: "VIP",
-        purchaseDate: new Date().toISOString(),
-        price: 120,
-        isResale: false,
-        isListed: false,
-      },
-      {
-        id: "ticket_" + Math.random().toString(36).substring(2, 10),
-        orderId,
-        eventId: Math.random().toString(36).substring(2, 15).toUpperCase(),
-        eventName: "Music Festival",
-        eventDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days from now
-        section: "SEC1",
-        row: "ROW1",
-        seat: 5,
-        ticketType: "Premium",
-        purchaseDate: new Date().toISOString(),
-        price: 85,
-        isResale: false,
-        isListed: false,
-      },
-    ]
-  }
+  }, [team?.id, router])
 
   const handleResalePriceChange = (ticketId: string, price: string) => {
     const numericPrice = Number.parseFloat(price)
@@ -161,7 +70,7 @@ export default function MyTicketsPage() {
     }
   }
 
-  const handleListForResale = async (ticket: MyTicket) => {
+  const handleListForResale = async (ticket: any) => {
     const ticketId = ticket.id
     const price = resalePrice[ticketId]
 
@@ -181,64 +90,25 @@ export default function MyTicketsPage() {
 
     try {
       // Calculate fees
-      const royaltyPercentage = 5 // Default if not specified
+      const royaltyPercentage = ticket.event.royaltyPercentage || 5
       const royaltyFee = Math.round(price * (royaltyPercentage / 100))
       const serviceFee = Math.round(price * 0.1) // 10% service fee
 
       // Create a resale ticket object
-      const resaleTicket = {
-        id: `resale_${Math.random().toString(36).substring(2, 10)}`,
-        ticketId: ticket.id,
-        eventId: ticket.eventId,
-        eventName: ticket.eventName,
-        section: ticket.section,
-        row: ticket.row,
-        seat: ticket.seat,
-        price: price,
+      const resaleData = {
+        ticketId,
+        price,
         originalPrice: ticket.price,
-        royaltyPercentage: royaltyPercentage,
-        royaltyFee: royaltyFee,
-        serviceFee: serviceFee,
-        sellerId: "user_1",
+        royaltyPercentage,
+        royaltyFee,
+        serviceFee,
       }
 
-      // Call API to list ticket for resale with full ticket data
-      await listTicketForResale(ticketId, price, {
-        eventId: ticket.eventId,
-        eventName: ticket.eventName,
-        section: ticket.section,
-        row: ticket.row,
-        seat: ticket.seat,
-        originalPrice: ticket.price,
-        royaltyPercentage: ticket.royaltyPercentage || 5,
-      })
+      // Call API to list ticket for resale
+      const result = await listTicketForResale(resaleData)
 
       // Update the ticket in the local state
-      setTickets(tickets.map((t) => (t.id === ticketId ? { ...t, isListed: true, resalePrice: price } : t)))
-
-      // Also save directly to localStorage for immediate availability
-      try {
-        // Get existing resale tickets
-        const storedTickets = localStorage.getItem("resaleTickets")
-        let allTickets = []
-
-        if (storedTickets) {
-          try {
-            allTickets = JSON.parse(storedTickets)
-          } catch (e) {
-            console.error("Error parsing stored resale tickets:", e)
-            allTickets = []
-          }
-        }
-
-        // Add the new ticket
-        allTickets.push(resaleTicket)
-
-        // Save back to localStorage
-        localStorage.setItem("resaleTickets", JSON.stringify(allTickets))
-      } catch (error) {
-        console.error("Error saving resale ticket to localStorage:", error)
-      }
+      setTickets(tickets.map((t) => (t.id === ticketId ? { ...t, isListed: true, resaleTicket: result } : t)))
 
       toast({
         title: "Ticket listed for resale",
@@ -246,13 +116,10 @@ export default function MyTicketsPage() {
       })
     } catch (error) {
       console.error("Error listing ticket for resale:", error)
-
-      // Even if API fails, update the UI for demo purposes
-      setTickets(tickets.map((t) => (t.id === ticketId ? { ...t, isListed: true, resalePrice: price } : t)))
-
       toast({
-        title: "Ticket listed for resale",
-        description: `Your ticket has been listed for ${formatCurrency(price)}`,
+        title: "Error",
+        description: "Failed to list ticket for resale. Please try again.",
+        variant: "destructive",
       })
     } finally {
       setIsResaleListing({
@@ -262,15 +129,45 @@ export default function MyTicketsPage() {
     }
   }
 
+  const handleCancelResale = async (ticket: any) => {
+    if (!ticket.resaleTicket?.id) {
+      toast({
+        title: "Error",
+        description: "No resale listing found for this ticket",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      await cancelResaleListing(ticket.resaleTicket.id)
+
+      // Update the ticket in the local state
+      setTickets(tickets.map((t) => (t.id === ticket.id ? { ...t, isListed: false, resaleTicket: null } : t)))
+
+      toast({
+        title: "Listing removed",
+        description: "Your ticket is no longer listed for resale",
+      })
+    } catch (error) {
+      console.error("Error canceling resale listing:", error)
+      toast({
+        title: "Error",
+        description: "Failed to cancel resale listing. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   const activeTickets = tickets.filter((ticket) => {
-    const eventDate = new Date(ticket.eventDate)
+    const eventDate = new Date(ticket.event.date)
     return eventDate > new Date() && !ticket.isListed
   })
 
   const listedTickets = tickets.filter((ticket) => ticket.isListed)
 
   const pastTickets = tickets.filter((ticket) => {
-    const eventDate = new Date(ticket.eventDate)
+    const eventDate = new Date(ticket.event.date)
     return eventDate <= new Date() && !ticket.isListed
   })
 
@@ -290,7 +187,7 @@ export default function MyTicketsPage() {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">My Tickets</h1>
         <Button variant="outline" asChild>
-          <Link href="/">
+          <Link href="/events">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Events
           </Link>
@@ -311,7 +208,7 @@ export default function MyTicketsPage() {
               <h2 className="text-xl font-semibold mb-2">No active tickets</h2>
               <p className="text-gray-500 mb-6">You don't have any upcoming event tickets.</p>
               <Button asChild>
-                <Link href="/">Browse Events</Link>
+                <Link href="/events">Browse Events</Link>
               </Button>
             </div>
           ) : (
@@ -320,10 +217,12 @@ export default function MyTicketsPage() {
                 <Card key={ticket.id} className="overflow-hidden">
                   <CardHeader className="bg-primary/5 pb-2">
                     <CardTitle className="flex justify-between items-start">
-                      <div className="truncate">{ticket.eventName}</div>
-                      <div className="text-sm font-normal bg-primary/10 px-2 py-1 rounded">{ticket.ticketType}</div>
+                      <div className="truncate">{ticket.event.name}</div>
+                      <div className="text-sm font-normal bg-primary/10 px-2 py-1 rounded">
+                        {ticket.ticketType.name}
+                      </div>
                     </CardTitle>
-                    <p className="text-sm text-muted-foreground">{formatDate(ticket.eventDate)}</p>
+                    <p className="text-sm text-muted-foreground">{formatDate(ticket.event.date)}</p>
                   </CardHeader>
                   <CardContent className="pt-4">
                     <div className="space-y-2">
@@ -435,10 +334,10 @@ export default function MyTicketsPage() {
                 <Card key={ticket.id} className="overflow-hidden">
                   <CardHeader className="bg-amber-50 pb-2">
                     <CardTitle className="flex justify-between items-start">
-                      <div className="truncate">{ticket.eventName}</div>
+                      <div className="truncate">{ticket.event.name}</div>
                       <div className="text-sm font-normal bg-amber-100 text-amber-800 px-2 py-1 rounded">Listed</div>
                     </CardTitle>
-                    <p className="text-sm text-muted-foreground">{formatDate(ticket.eventDate)}</p>
+                    <p className="text-sm text-muted-foreground">{formatDate(ticket.event.date)}</p>
                   </CardHeader>
                   <CardContent className="pt-4">
                     <div className="space-y-2">
@@ -462,7 +361,7 @@ export default function MyTicketsPage() {
                       </div>
                       <div className="flex justify-between text-sm font-medium">
                         <span>Resale Price</span>
-                        <span className="text-green-600">{formatCurrency(ticket.resalePrice || 0)}</span>
+                        <span className="text-green-600">{formatCurrency(ticket.resaleTicket?.price || 0)}</span>
                       </div>
                     </div>
                   </CardContent>
@@ -470,22 +369,7 @@ export default function MyTicketsPage() {
                     <Button variant="outline" asChild>
                       <Link href={`/events/${ticket.eventId}`}>View Event</Link>
                     </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={() => {
-                        // Remove from listed tickets
-                        setTickets(
-                          tickets.map((t) =>
-                            t.id === ticket.id ? { ...t, isListed: false, resalePrice: undefined } : t,
-                          ),
-                        )
-
-                        toast({
-                          title: "Listing removed",
-                          description: "Your ticket is no longer listed for resale",
-                        })
-                      }}
-                    >
+                    <Button variant="destructive" onClick={() => handleCancelResale(ticket)}>
                       Remove Listing
                     </Button>
                   </CardFooter>
@@ -508,10 +392,10 @@ export default function MyTicketsPage() {
                 <Card key={ticket.id} className="overflow-hidden opacity-80">
                   <CardHeader className="bg-gray-100 pb-2">
                     <CardTitle className="flex justify-between items-start">
-                      <div className="truncate">{ticket.eventName}</div>
+                      <div className="truncate">{ticket.event.name}</div>
                       <div className="text-sm font-normal bg-gray-200 px-2 py-1 rounded">Past</div>
                     </CardTitle>
-                    <p className="text-sm text-muted-foreground">{formatDate(ticket.eventDate)}</p>
+                    <p className="text-sm text-muted-foreground">{formatDate(ticket.event.date)}</p>
                   </CardHeader>
                   <CardContent className="pt-4">
                     <div className="space-y-2">
