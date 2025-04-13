@@ -1,9 +1,16 @@
+"use client"
 import type React from "react"
 
-import { Inter } from "next/font/google"
-import "./globals.css"
-import { CartProvider } from "@/hooks/use-cart"
 import { Toaster } from "@/components/toaster"
+import { CartProvider } from "@/hooks/use-cart"
+import { Inter } from "next/font/google"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { TeamHeader } from "@/components/team-header"
+
+// Create a client
+const queryClient = new QueryClient()
+import "./globals.css"
+import { SolanaProvider } from "@/components/providers/solana-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -15,10 +22,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <CartProvider>
-          {children}
-          <Toaster />
-        </CartProvider>
+        <QueryClientProvider client={queryClient}>
+          <SolanaProvider>
+            <CartProvider>
+              <TeamHeader />
+              {children}
+              <Toaster />
+            </CartProvider>
+          </SolanaProvider>
+        </QueryClientProvider>
       </body>
     </html>
   )
@@ -27,6 +39,3 @@ export default function RootLayout({
 
 import './globals.css'
 
-export const metadata = {
-      generator: 'v0.dev'
-    };

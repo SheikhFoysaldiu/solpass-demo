@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -18,9 +18,10 @@ import { fetchEventById, fetchEventAvailability, fetchResaleTickets } from "@/li
 import { CartSheet } from "@/components/cart-sheet"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
-import { generateDummyEvent } from "@/lib/mock-data"
+import ChainTickets from "@/components/tickets/chain-tickets"
+import type { ResaleTicket } from "@/types"
 
-// Default ticket data to use as fallback
+// Define the ticket data interface
 export interface TicketData {
   offers: {
     ticketTypeId: string
@@ -45,61 +46,13 @@ export interface TicketData {
   }[]
 }
 
-interface ResaleTicket {
-  id: string
-  ticketId: string
-  eventId: string
-  section: string
-  row: string
-  seat?: number
-  price: number
-  originalPrice: number
-  royaltyPercentage: number
-  royaltyFee: number
-  serviceFee: number
-  sellerId: string
-}
-
-const defaultTicketData: TicketData = {
-  offers: [
-    {
-      ticketTypeId: "000000000001",
-      priceLevelId: "9",
-      currency: "USD",
-      faceValue: 50.5,
-      charges: [
-        {
-          reason: "facility",
-          type: "fee",
-          amount: 8,
-        },
-        {
-          reason: "service",
-          type: "fee",
-          amount: 15.8,
-        },
-      ],
-      offerName: "General Admission",
-      offerDescription: "General Admission",
-      eventTicketMinimum: 1,
-      sellableQuantities: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-    },
-  ],
-  available: 100,
-  inventory: [
-    {
-      section: "GA",
-      row: "GA",
-      seats: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-    },
-  ],
-}
-
 export default function EventPage() {
   const params = useParams()
   const router = useRouter()
   const { addToCart, cart } = useCart()
   const { toast } = useToast()
+  const searchParams = useSearchParams()
+  const chainEventKey = searchParams.get("chainEventKey")
   const [event, setEvent] = useState<any>(null)
   const [availability, setAvailability] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -120,20 +73,17 @@ export default function EventPage() {
         setLoading(true)
         setError(null)
 
-        // Fetch event details from our API
-        let eventData = await fetchEventById(params?.id as string)
-        console.log("Fetched event data:", eventData)
-
-        // If event not found, create a dummy event
-        if (!eventData) {
-          console.log("Event not found, creating dummy event")
-          eventData = generateDummyEvent()
-          eventData.id = params.id as string
+        if (!params?.id) {
+          setError("Event ID is missing")
+          setLoading(false)
+          return
         }
 
+        // Fetch event details from our API
+        const eventData = await fetchEventById(params.id as string)
         setEvent(eventData)
 
-        // Try to fetch availability data
+        // Fetch availability data
         try {
           const availabilityData = await fetchEventAvailability(params.id as string)
 
@@ -156,14 +106,9 @@ export default function EventPage() {
                 }
               }
             }
-          } else {
-            // If availability data doesn't have the expected structure, create a default one
-            createDefaultAvailability(eventData)
           }
         } catch (error) {
           console.error("Error fetching availability:", error)
-          // Create default availability data
-          createDefaultAvailability(eventData)
         }
 
         // Fetch resale tickets
@@ -171,150 +116,17 @@ export default function EventPage() {
           const resaleData = await fetchResaleTickets(params.id as string)
           if (Array.isArray(resaleData) && resaleData.length > 0) {
             setResaleTickets(resaleData)
-          } else {
-            // Create dummy resale tickets
-            createDummyResaleTickets(eventData)
           }
         } catch (error) {
           console.error("Error fetching resale tickets:", error)
-          // Create dummy resale tickets
-          createDummyResaleTickets(eventData)
         }
 
         setLoading(false)
       } catch (error) {
         console.error("Error fetching event details:", error)
-
-        // Create a dummy event if there's an error
-        const dummyEvent = generateDummyEvent()
-        dummyEvent.id = params.id as string
-        setEvent(dummyEvent)
-        createDefaultAvailability(dummyEvent)
-        createDummyResaleTickets(dummyEvent)
-
+        setError("Failed to load event details. Please try again later.")
         setLoading(false)
       }
-    }
-
-    // Helper function to create default availability data
-    const createDefaultAvailability = (eventData: any) => {
-      // Create default availability data based on the event's ticket types if available
-      if (eventData.ticketTypes && Array.isArray(eventData.ticketTypes) && eventData.ticketTypes.length > 0) {
-        const tickets = eventData.ticketTypes.map((ticketType: any, index: number) => {
-          return {
-            offers: [
-              {
-                ticketTypeId: `00000000000${index + 1}`,
-                priceLevelId: `${index + 1}`,
-                currency: "USD",
-                faceValue: ticketType.price || 50,
-                charges: [
-                  {
-                    reason: "service",
-                    type: "fee",
-                    amount: ticketType.fees || 10,
-                  },
-                ],
-                offerName: ticketType.name || `Ticket Type ${index + 1}`,
-                offerDescription: ticketType.name || `Ticket Type ${index + 1}`,
-                eventTicketMinimum: 1,
-                sellableQuantities: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-              },
-            ],
-            available: ticketType.available || 100,
-            inventory: [
-              {
-                section: "GA",
-                row: "GA",
-                seats: Array.from({ length: 20 }, (_, i) => i + 1),
-              },
-            ],
-          }
-        })
-
-        const defaultAvailability = {
-          event: {
-            id: eventData.id,
-            tickets: tickets.length > 0 ? tickets : [defaultTicketData],
-          },
-        }
-
-        setAvailability(defaultAvailability)
-
-        if (defaultAvailability.event.tickets.length > 0) {
-          setSelectedTicket(defaultAvailability.event.tickets[0])
-
-          // Auto-select first section and row
-          if (
-            defaultAvailability.event.tickets[0].inventory &&
-            defaultAvailability.event.tickets[0].inventory.length > 0
-          ) {
-            setSelectedSection(defaultAvailability.event.tickets[0].inventory[0].section)
-            setSelectedRow(defaultAvailability.event.tickets[0].inventory[0].row)
-
-            // Select first available seats based on quantity
-            if (
-              defaultAvailability.event.tickets[0].inventory[0].seats &&
-              defaultAvailability.event.tickets[0].inventory[0].seats.length >= quantity
-            ) {
-              setSelectedSeats(defaultAvailability.event.tickets[0].inventory[0].seats.slice(0, quantity))
-            }
-          }
-        }
-      } else {
-        // If no ticket types, use a completely default structure
-        const defaultAvailability = {
-          event: {
-            id: eventData.id,
-            tickets: [defaultTicketData],
-          },
-        }
-
-        setAvailability(defaultAvailability)
-        setSelectedTicket(defaultTicketData)
-
-        if (defaultTicketData.inventory && defaultTicketData.inventory.length > 0) {
-          setSelectedSection(defaultTicketData.inventory[0].section)
-          setSelectedRow(defaultTicketData.inventory[0].row)
-
-          if (defaultTicketData.inventory[0].seats && defaultTicketData.inventory[0].seats.length >= quantity) {
-            setSelectedSeats(defaultTicketData.inventory[0].seats.slice(0, quantity))
-          }
-        }
-      }
-    }
-
-    // Helper function to create dummy resale tickets
-    const createDummyResaleTickets = (eventData: any) => {
-      // Create 0-1 dummy resale tickets
-      const royaltyPercentage = eventData.royaltyPercentage || 5
-      const dummyResaleTickets: ResaleTicket[] = []
-
-      // 50% chance of having a resale ticket
-      if (Math.random() > 0.5) {
-        const originalPrice = 50 + Math.floor(Math.random() * 100)
-        const markup = 1 + Math.random() * 0.5 // 0-50% markup
-        const resalePrice = Math.round(originalPrice * markup)
-        const royaltyFee = Math.round(resalePrice * (royaltyPercentage / 100))
-        const serviceFee = Math.round(resalePrice * 0.1) // 10% service fee
-
-        dummyResaleTickets.push({
-          id: `resale_${Math.random().toString(36).substring(2, 10)}`,
-          ticketId: `ticket_${Math.random().toString(36).substring(2, 10)}`,
-          eventId: eventData.id,
-          section: "GA",
-          row: "GA",
-          seat: undefined,
-          price: resalePrice,
-          originalPrice: originalPrice,
-          royaltyPercentage: royaltyPercentage,
-          royaltyFee: royaltyFee,
-          serviceFee: serviceFee,
-          sellerId: `user_${Math.random().toString(36).substring(2, 10)}`,
-        })
-      }
-
-      setResaleTickets(dummyResaleTickets)
     }
 
     if (params.id) {
@@ -352,6 +164,7 @@ export default function EventPage() {
       fees: ticketOffer.charges.reduce((total: number, charge: any) => total + (charge.amount || 0), 0),
       offerName: ticketOffer.offerName,
       isResale: false,
+      chainEventKey: chainEventKey ?? undefined,
     }
 
     addToCart(ticketData)
@@ -374,13 +187,15 @@ export default function EventPage() {
       eventName: event.name,
       ticketTypeId: selectedResaleTicket.ticketId,
       priceLevelId: "resale",
-      section: selectedResaleTicket.section,
-      row: selectedResaleTicket.row,
-      seats: selectedResaleTicket.seat ? [selectedResaleTicket.seat] : [],
+      section: selectedResaleTicket.ticket?.section || "",
+      row: selectedResaleTicket.ticket?.row || "",
+      seats: selectedResaleTicket.ticket?.seat ? [selectedResaleTicket.ticket.seat] : [],
       quantity: 1, // Resale tickets are sold individually
       price: selectedResaleTicket.price,
       fees: selectedResaleTicket.serviceFee + selectedResaleTicket.royaltyFee,
-      offerName: `Resale Ticket - ${selectedResaleTicket.section} ${selectedResaleTicket.row}${selectedResaleTicket.seat ? ` Seat ${selectedResaleTicket.seat}` : ""}`,
+      offerName: `Resale Ticket - ${selectedResaleTicket.ticket?.section || ""} ${selectedResaleTicket.ticket?.row || ""}${
+        selectedResaleTicket.ticket?.seat ? ` Seat ${selectedResaleTicket.ticket.seat}` : ""
+      }`,
       isResale: true,
       resaleId: selectedResaleTicket.id,
       royaltyFee: selectedResaleTicket.royaltyFee,
@@ -565,22 +380,26 @@ export default function EventPage() {
         <div className="lg:col-span-2">
           <div className="relative w-full h-64 md:h-96 rounded-lg overflow-hidden mb-6 bg-gray-100">
             <Image
-              src={event.image || "/placeholder.svg?height=400&width=800"}
+              src={event.image || `/placeholder.svg?height=400&width=800&text=${encodeURIComponent(event.name)}`}
               alt={event.name}
               fill
               className="object-cover"
               priority
             />
           </div>
-
           <div className="flex flex-wrap gap-4 mb-6 bg-gray-50 p-4 rounded-lg">
             <div className="flex items-center gap-2">
               <Calendar className="h-5 w-5 text-gray-500" />
-              <span>{formatDate(event.date)}</span>
+              <span>{formatDate(new Date(event.date).toISOString())}</span>
             </div>
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-gray-500" />
-              <span>{new Date(event.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+              <span>
+                {new Date(event.date).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <MapPin className="h-5 w-5 text-gray-500" />
@@ -597,11 +416,14 @@ export default function EventPage() {
               </div>
             )}
           </div>
-
           <div className="mb-8">
             <h2 className="text-xl font-semibold mb-2">About This Event</h2>
             <p className="text-gray-700">{event.description || "No description available for this event."}</p>
           </div>
+          <ChainTickets
+            eventPublicKey={chainEventKey ?? undefined}
+            showOwners
+          />
         </div>
 
         <div>
@@ -741,8 +563,8 @@ export default function EventPage() {
                               <div>
                                 <div className="flex items-center">
                                   <h3 className="font-medium">
-                                    {ticket.section} {ticket.row}
-                                    {ticket.seat ? ` Seat ${ticket.seat}` : ""}
+                                    {ticket.ticket?.section || "GA"} {ticket.ticket?.row || "GA"}
+                                    {ticket.ticket?.seat ? ` Seat ${ticket.ticket.seat}` : ""}
                                   </h3>
                                   <Badge variant="outline" className="ml-2 bg-amber-50 text-amber-800 border-amber-200">
                                     Resale
@@ -943,10 +765,7 @@ export default function EventPage() {
                   </div>
 
                   <div className="flex justify-between text-sm">
-                    <span className="flex items-center">
-                      <Percent className="h-3 w-3 mr-1" />
-                      Royalty Fee ({selectedResaleTicket.royaltyPercentage}%)
-                    </span>
+                    <span>Royalty Fee ({selectedResaleTicket.royaltyPercentage}%)</span>
                     <span>{formatCurrency(selectedResaleTicket.royaltyFee)}</span>
                   </div>
 
@@ -959,9 +778,9 @@ export default function EventPage() {
                     </span>
                   </div>
 
-                  <Button className="w-full" size="lg" onClick={handleAddResaleToCart}>
+                  <Button className="w-full" size="lg" onClick={handleAddResaleToCart} disabled={!selectedResaleTicket}>
                     <ShoppingCart className="mr-2 h-5 w-5" />
-                    Buy Resale Ticket
+                    Add Resale Ticket to Cart
                   </Button>
                 </div>
               )}

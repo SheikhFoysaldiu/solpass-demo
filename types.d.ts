@@ -1,33 +1,98 @@
-export interface Event {
+// Database model types that match our Prisma schema
+export type Team = {
   id: string
   name: string
-  date: string
-  venue: string
-  image?: string
-  description?: string
-  onsale: string
-  offsale: string
-  ticketLimit?: number
-  royaltyPercentage?: number
-  ticketTypes?: {
-    name: string
-    price: number
-    fees: number
-    available: number
-  }[]
+  publicKey: string
+  createdAt: Date
+  updatedAt: Date
 }
 
-export interface ResaleTicket {
+export type Event = {
   id: string
-  ticketId: string
+  name: string
+  date: Date
+  venue: string
+  description: string | null
+  image: string | null
+  onsale: Date
+  offsale: Date
+  ticketLimit: number
+  royaltyPercentage: number
+  createdAt: Date
+  updatedAt: Date
+  teamId: string
+  chainEventKey: string | null
+  ticketTypes?: TicketType[]
+  team?: Team
+}
+
+export type TicketType = {
+  id: string
+  name: string
+  price: number
+  fees: number
+  available: number
+  createdAt: Date
+  updatedAt: Date
   eventId: string
+}
+
+export type Ticket = {
+  id: string
+  orderId: string
   section: string
   row: string
-  seat?: number
+  seat: number | null
+  purchaseDate: Date
+  price: number
+  isResale: boolean
+  isListed: boolean
+  createdAt: Date
+  updatedAt: Date
+  eventId: string
+  ticketTypeId: string
+  ownerId: string
+  event?: Event
+  ticketType?: TicketType
+  owner?: Team
+  resaleTicket?: ResaleTicket
+}
+
+export type ResaleTicket = {
+  id: string
   price: number
   originalPrice: number
   royaltyPercentage: number
   royaltyFee: number
   serviceFee: number
-  sellerId: string
+  createdAt: Date
+  updatedAt: Date
+  ticketId: string
+  eventId: string
+  ticket?: Ticket
+}
+
+// Frontend types for cart items
+export interface CartItem {
+  eventId: string
+  eventName: string
+  ticketTypeId: string
+  priceLevelId: string
+  section?: string
+  row?: string
+  seats?: number[]
+  quantity: number
+  price: number
+  fees: number
+  offerName: string
+  chainEventKey?: string
+  isResale?: boolean
+  resaleId?: string
+}
+
+// Royalty form values type
+export interface RoyaltyFormValues {
+  ticketmaster: number
+  team: number
+  solpass: number
 }

@@ -1,23 +1,25 @@
 "use client"
 
-import type React from "react"
-import { useState } from "react"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Slider } from "@/components/ui/slider"
-import { createEvent } from "@/lib/api-client"
-import { Trash2, Plus, Loader2, Percent } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
+import { Slider } from "@/components/ui/slider"
+import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
+import { createEvent } from "@/lib/api-client"
+import { useTeamStore } from "@/store/useTeamStore"
+import type { Event, TicketType } from "@/types"
+import { Loader2, Percent, Plus, Trash2 } from "lucide-react"
+import type React from "react"
+import { useState } from "react"
 
 interface CreateEventFormProps {
   onSubmit: (event: Event) => void
 }
 
-interface TicketType {
+interface TicketTypeInput {
   name: string
   price: number
   fees: number
@@ -27,6 +29,8 @@ interface TicketType {
 export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const { team } = useTeamStore()
+
   const [formData, setFormData] = useState({
     name: "",
     date: "",
@@ -37,7 +41,7 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
     royaltyPercentage: 5, // Default royalty percentage
   })
 
-  const [ticketTypes, setTicketTypes] = useState<TicketType[]>([
+  const [ticketTypes, setTicketTypes] = useState<TicketTypeInput[]>([
     { name: "General Admission", price: 50, fees: 10, available: 100 },
   ])
 
@@ -50,7 +54,7 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
     setFormData((prev) => ({ ...prev, royaltyPercentage: value[0] }))
   }
 
-  const handleTicketTypeChange = (index: number, field: keyof TicketType, value: string | number) => {
+  const handleTicketTypeChange = (index: number, field: keyof TicketTypeInput, value: string | number) => {
     const newTicketTypes = [...ticketTypes]
 
     // Convert to number if the field is price, fees, or available
@@ -103,18 +107,27 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
       }
 
       // Create a new event object
-      const newEvent: Event = {
-        id: Math.random().toString(36).substring(2, 15).toUpperCase(),
+      const newEvent: Partial<Event> = {
         name: formData.name,
-        date: formData.date,
+        date: new Date(formData.date),
         venue: formData.venue,
         description: formData.description,
         image: formData.image || `/placeholder.svg?height=400&width=600&text=${encodeURIComponent(formData.name)}`,
-        onsale: new Date().toISOString(),
-        offsale: new Date(new Date().setMonth(new Date().getMonth() + 3)).toISOString(),
+        onsale: new Date(),
+        offsale: new Date(new Date().setMonth(new Date().getMonth() + 3)),
         ticketLimit: Number(formData.ticketLimit),
-        ticketTypes: ticketTypes,
         royaltyPercentage: formData.royaltyPercentage,
+        teamId: team?.id,
+        ticketTypes: ticketTypes.map(
+          (type) =>
+            ({
+              name: type.name,
+              price: type.price,
+              fees: type.fees,
+              available: type.available,
+
+            }) as TicketType,
+        ),
       }
 
       console.log("Creating event:", newEvent)
@@ -122,12 +135,11 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
       // Try to create the event via API
       let createdEvent
       try {
-        createdEvent = await createEvent(newEvent)
+        onSubmit(newEvent as Event)
         console.log("Event created successfully:", createdEvent)
       } catch (apiError) {
         console.error("API error creating event:", apiError)
-        // If API fails, use the original event object
-        createdEvent = newEvent
+        throw apiError
       }
 
       // Reset form
@@ -141,9 +153,6 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
         royaltyPercentage: 5,
       })
       setTicketTypes([{ name: "General Admission", price: 50, fees: 10, available: 100 }])
-
-      // Call the onSubmit callback with the event (either from API or the original)
-      onSubmit(createdEvent || newEvent)
 
       toast({
         title: "Success",

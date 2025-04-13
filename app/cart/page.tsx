@@ -8,119 +8,156 @@ import { Separator } from "@/components/ui/separator"
 import { ShoppingCart, Trash2, CreditCard, ArrowLeft, Loader2 } from "lucide-react"
 import { useCart } from "@/hooks/use-cart"
 import { formatCurrency } from "@/lib/utils"
-import { processCheckout } from "@/lib/api-client"
 import Link from "next/link"
+import { usePrivateKeyAnchorWallet, useProgram } from "@/lib/hooks/useProgram"
+import { type AnchorWallet, useAnchorWallet } from "@solana/wallet-adapter-react"
+import { PublicKey, SystemProgram } from "@solana/web3.js"
+import { v4 as uuidv4 } from "uuid"
+import { useToast } from "@/hooks/use-toast"
+import { useTeamStore } from "@/store/useTeamStore"
 
 export default function CartPage() {
   const router = useRouter()
   const { cart, removeFromCart, clearCart } = useCart()
   const [isProcessing, setIsProcessing] = useState(false)
+  const program = useProgram()
+  const w = useAnchorWallet()
+  const privateWallet = usePrivateKeyAnchorWallet()
+  const { toast } = useToast()
+  const { team } = useTeamStore()
 
   const totalItems = cart.reduce((total, item) => total + item.quantity, 0)
   const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0)
   const fees = cart.reduce((total, item) => total + item.fees * item.quantity, 0)
   const total = subtotal + fees
 
-  // Update the handleCheckout function to save purchased tickets to localStorage
   const handleCheckout = async () => {
+    if (!team?.id) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to complete your purchase",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsProcessing(true)
 
     try {
-      const cartId = localStorage.getItem("cartId")
+      // Process blockchain transactions first if wallet is connected
+      if ((w || privateWallet?.wallet) && program && cart.length > 0) {
+        try {
+          let wallet: AnchorWallet | null = null
 
-      if (cartId) {
-        // Process the checkout via the API
-        const response = await processCheckout(cartId)
-
-        // Save the order ID
-        localStorage.setItem("orderId", response.orderId)
-
-        // Save the purchased tickets to localStorage
-        const purchasedTickets = cart.map((item) => ({
-          id: "ticket_" + Math.random().toString(36).substring(2, 10),
-          orderId: response.orderId,
-          eventId: item.eventId,
-          eventName: item.eventName,
-          eventDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days from now as placeholder
-          section: item.section,
-          row: item.row,
-          seat: item.seats && item.seats.length > 0 ? item.seats[0] : undefined,
-          ticketType: item.offerName,
-          purchaseDate: new Date().toISOString(),
-          price: item.price,
-          isResale: item.isResale || false,
-          isListed: false,
-        }))
-
-        // Get existing tickets or initialize empty array
-        const existingTickets = localStorage.getItem("purchasedTickets")
-        let allTickets = []
-
-        if (existingTickets) {
-          try {
-            allTickets = JSON.parse(existingTickets)
-          } catch (error) {
-            console.error("Error parsing existing tickets:", error)
-            allTickets = []
+          if (w) {
+            wallet = w
+          } else if (privateWallet) {
+            wallet = privateWallet.wallet
           }
+
+          if (wallet) {
+            // Process each ticket purchase on the blockchain
+            for (const item of cart) {
+              if (item.eventId && item.chainEventKey) {
+                const ticketId = uuidv4().slice(0, 8) // Generate unique ticket ID
+
+                // Find PDA for event account
+                const eventAccount = new PublicKey(item.chainEventKey)
+
+                // Find PDA for ticket account
+                const [ticketPda] = PublicKey.findProgramAddressSync(
+                  [Buffer.from("TICKET_STATE"), eventAccount.toBuffer(), Buffer.from(ticketId)],
+                  program.programId,
+                )
+
+                console.log("ticketPda", ticketPda.toBase58())
+
+                // Call purchaseTicket instruction
+                const tx = await program.methods
+                  .purchaseTicket(ticketId)
+                  .accounts({
+                    eventAccount: eventAccount,
+                    ticketAccount: ticketPda,
+                    buyer: wallet.publicKey,
+                    systemProgram: SystemProgram.programId,
+                  })
+                  .rpc()
+
+                console.log("Ticket purchase transaction:", tx)
+              }
+            }
+
+            toast({
+              title: "Blockchain tickets purchased",
+              description: "Your tickets have been successfully purchased on the blockchain.",
+            })
+          }
+        } catch (error) {
+          console.error("Error processing blockchain transactions:", error)
+          toast({
+            title: "Blockchain purchase failed",
+            description: "Failed to purchase tickets on blockchain, but continuing with checkout.",
+            variant: "destructive",
+          })
         }
-
-        // Combine existing and new tickets
-        allTickets = [...allTickets, ...purchasedTickets]
-        localStorage.setItem("purchasedTickets", JSON.stringify(allTickets))
-
-        // Clear the cart
-        clearCart()
-
-        // Redirect to success page
-        router.push("/checkout/success")
       }
+
+      // Create a cart in the database
+      const response = await fetch("/api/cart", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          teamId: team.id,
+          items: cart,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to create cart")
+      }
+
+      const cartData = await response.json()
+
+      // Process checkout
+      const checkoutResponse = await fetch("/api/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          cartId: cartData.id,
+          teamId: team.id,
+        }),
+      })
+
+      if (!checkoutResponse.ok) {
+        throw new Error("Failed to process checkout")
+      }
+
+      const checkoutData = await checkoutResponse.json()
+
+      // Clear the cart
+      clearCart()
+
+      // Show success message
+      toast({
+        title: "Purchase successful",
+        description: "Your tickets have been purchased successfully.",
+      })
+
+      // Redirect to success page
+      router.push(`/checkout/success?orderId=${checkoutData.orderId}`)
     } catch (error) {
       console.error("Error processing checkout:", error)
-
-      // If API fails, still proceed with checkout and save tickets
-      const orderId = Math.floor(Math.random() * 1000000)
-        .toString()
-        .padStart(6, "0")
-
-      // Save purchased tickets
-      const purchasedTickets = cart.map((item) => ({
-        id: "ticket_" + Math.random().toString(36).substring(2, 10),
-        orderId: orderId,
-        eventId: item.eventId,
-        eventName: item.eventName,
-        eventDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days from now as placeholder
-        section: item.section,
-        row: item.row,
-        seat: item.seats && item.seats.length > 0 ? item.seats[0] : undefined,
-        ticketType: item.offerName,
-        purchaseDate: new Date().toISOString(),
-        price: item.price,
-        isResale: item.isResale || false,
-        isListed: false,
-      }))
-
-      // Get existing tickets or initialize empty array
-      const existingTickets = localStorage.getItem("purchasedTickets")
-      let allTickets = []
-
-      if (existingTickets) {
-        try {
-          allTickets = JSON.parse(existingTickets)
-        } catch (error) {
-          console.error("Error parsing existing tickets:", error)
-          allTickets = []
-        }
-      }
-
-      // Combine existing and new tickets
-      allTickets = [...allTickets, ...purchasedTickets]
-      localStorage.setItem("purchasedTickets", JSON.stringify(allTickets))
-
-      setTimeout(() => {
-        clearCart()
-        router.push("/checkout/success")
-      }, 1500)
+      toast({
+        title: "Checkout failed",
+        description: "There was an error processing your purchase. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsProcessing(false)
     }
   }
 
@@ -131,7 +168,7 @@ export default function CartPage() {
         <h1 className="text-2xl font-bold mb-2">Your cart is empty</h1>
         <p className="text-gray-500 mb-6">Looks like you haven't added any tickets to your cart yet.</p>
         <Button asChild>
-          <Link href="/">
+          <Link href="/events">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Browse Events
           </Link>
@@ -145,7 +182,7 @@ export default function CartPage() {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Your Cart</h1>
         <Button variant="outline" asChild>
-          <Link href="/">
+          <Link href="/events">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Continue Shopping
           </Link>

@@ -1,64 +1,120 @@
 import { NextResponse } from "next/server"
-import { getStoredEvents, addEvent } from "@/lib/event-storage"
-
-export async function GET() {
-  try {
-    // Get events from localStorage
-    const events = getStoredEvents()
-    return NextResponse.json({ events })
-  } catch (error) {
-    console.error("Error fetching events:", error)
-    return NextResponse.json({ error: "Failed to fetch events" }, { status: 500 })
-  }
-}
+import prisma from "@/lib/prisma"
 
 export async function POST(request: Request) {
   try {
-    const newEvent = await request.json()
+    const data = await request.json()
+    console.log("Received data:", data)
+    const {
+      name,
+      date,
+      venue,
+      description,
+      image,
+      onsale,
+      offsale,
+      ticketLimit,
+      royaltyPercentage,
+      teamId,
+      chainEventKey,
+      ticketTypes,
+    } = data
 
-    // Generate a random ID if not provided
-    if (!newEvent.id) {
-      newEvent.id = Math.random().toString(36).substring(2, 15).toUpperCase()
+    // Validate required fields
+    if (!name || !date || !venue || !teamId) {
+      return NextResponse.json(
+        {
+          error: "Missing required fields: name, date, venue, and teamId are required",
+        },
+        { status: 400 },
+      )
     }
 
-    // Add default values if not provided
-    if (!newEvent.name) {
-      newEvent.name = "New Event"
-    }
+    // Create the event with ticket types in a transaction
+    const event = await prisma.$transaction(async (tx) => {
+      // Create the event
+      const newEvent = await tx.event.create({
+        data: {
+          name,
+          date: new Date(date),
+          venue,
+          description,
+          image,
+          onsale: new Date(onsale || Date.now()),
+          offsale: new Date(offsale || new Date(date).getTime()),
+          ticketLimit: ticketLimit || 10,
+          royaltyPercentage: royaltyPercentage || 5,
+          chainEventKey,
+          teamId,
+        },
+      })
 
-    if (!newEvent.date) {
-      const date = new Date()
-      date.setDate(date.getDate() + 30) // Default to 30 days from now
-      newEvent.date = date.toISOString()
-    }
+      // Create ticket types if provided
+      if (ticketTypes && Array.isArray(ticketTypes) && ticketTypes.length > 0) {
+        for (const type of ticketTypes) {
+          await tx.ticketType.create({
+            data: {
+              name: type.name,
+              price: type.price,
+              fees: type.fees,
+              available: type.available,
+              eventId: newEvent.id,
+            },
+          })
+        }
+      } else {
+        // Create a default ticket type if none provided
+        await tx.ticketType.create({
+          data: {
+            name: "General Admission",
+            price: 50,
+            fees: 10,
+            available: 100,
+            eventId: newEvent.id,
+          },
+        })
+      }
 
-    if (!newEvent.venue) {
-      newEvent.venue = "TBD"
-    }
+      return newEvent
+    })
 
-    if (!newEvent.onsale) {
-      newEvent.onsale = new Date().toISOString()
-    }
+    // Fetch the complete event with ticket types
+    const completeEvent = await prisma.event.findUnique({
+      where: { id: event.id },
+      include: { ticketTypes: true },
+    })
 
-    if (!newEvent.offsale) {
-      const offsaleDate = new Date()
-      offsaleDate.setMonth(offsaleDate.getMonth() + 3)
-      newEvent.offsale = offsaleDate.toISOString()
-    }
-
-    if (!newEvent.image) {
-      newEvent.image = `/placeholder.svg?height=400&width=600&text=${encodeURIComponent(newEvent.name)}`
-    }
-
-    // Add the new event to localStorage
-    const savedEvent = addEvent(newEvent)
-
-    // Log the event for debugging
-    console.log("Created new event:", savedEvent)
-
-    return NextResponse.json({ event: savedEvent }, { status: 201 })
+    return NextResponse.json(completeEvent, { status: 201 })
   } catch (error) {
     console.error("Error creating event:", error)
-    return NextResponse.json({ error: "Failed to create event" }, { status: 400 })
+    return NextResponse.json({ error: "Failed to create event" }, { status: 500 })
+  }
+}
+
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const teamId = searchParams.get("teamId")
+
+    let events
+    if (teamId) {
+      // Get events for a specific team
+      events = await prisma.event.findMany({
+        where: { teamId },
+        include: { ticketTypes: true },
+        orderBy: { date: "desc" },
+      })
+    } else {
+      // Get all events
+      events = await prisma.event.findMany({
+        include: { ticketTypes: true },
+        orderBy: { date: "desc" },
+      })
+    }
+
+    return NextResponse.json(events)
+  } catch (error) {
+    console.error("Error fetching events:", error)
+    return NextResponse.json({ error: "Failed to fetch events" }, { status: 500 })
   }
 }

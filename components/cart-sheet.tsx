@@ -5,12 +5,17 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { ShoppingCart, Trash2, CreditCard } from "lucide-react"
+import { ShoppingCart, Trash2, CreditCard, Loader2 } from "lucide-react"
 import { useCart } from "@/hooks/use-cart"
 import { formatCurrency } from "@/lib/utils"
-import { processCheckout } from "@/lib/api-client"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetTrigger } from "@/components/ui/sheet"
 import Link from "next/link"
+import { useToast } from "./ui/use-toast"
+import { useProgram } from "@/lib/hooks/useProgram"
+import { useAnchorWallet } from "@solana/wallet-adapter-react"
+import { v4 as uuidv4 } from "uuid"
+import { PublicKey, SystemProgram } from "@solana/web3.js"
+import { useTeamStore } from "@/store/useTeamStore"
 
 interface CartSheetProps {
   children?: React.ReactNode
@@ -24,6 +29,10 @@ export function CartSheet({ children, onCheckoutComplete, open, onOpenChange }: 
   const { cart, removeFromCart, clearCart } = useCart()
   const [isProcessing, setIsProcessing] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
+  const { toast } = useToast()
+  const program = useProgram()
+  const wallet = useAnchorWallet()
+  const { team } = useTeamStore()
 
   const totalItems = cart.reduce((total, item) => total + item.quantity, 0)
   const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0)
@@ -39,120 +48,127 @@ export function CartSheet({ children, onCheckoutComplete, open, onOpenChange }: 
     console.log("CartSheet rendered, isOpen:", isOpen, "sheetOpen:", sheetOpen)
   }, [isOpen, sheetOpen])
 
-  // Update the handleCheckout function to save purchased tickets to localStorage
   const handleCheckout = async () => {
+    if (!team?.id) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to complete your purchase",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsProcessing(true)
 
     try {
-      const cartId = localStorage.getItem("cartId")
+      // Process blockchain transactions first if wallet is connected
+      if (wallet && program && cart.length > 0) {
+        try {
+          // Process each ticket purchase on the blockchain
+          for (const item of cart) {
+            if (item.eventId && item.chainEventKey) {
+              const ticketId = uuidv4().slice(0, 8) // Generate unique ticket ID
 
-      if (cartId) {
-        // Process the checkout via the API
-        const response = await processCheckout(cartId)
+              // Find PDA for event account
+              const eventAccount = new PublicKey(item.chainEventKey)
 
-        // Save the order ID
-        localStorage.setItem("orderId", response.orderId)
+              // Find PDA for ticket account
+              const [ticketPda] = PublicKey.findProgramAddressSync(
+                [Buffer.from("TICKET_STATE"), eventAccount.toBuffer(), Buffer.from(ticketId)],
+                program.programId,
+              )
 
-        // Save the purchased tickets to localStorage
-        const purchasedTickets = cart.map((item) => ({
-          id: "ticket_" + Math.random().toString(36).substring(2, 10),
-          orderId: response.orderId,
-          eventId: item.eventId,
-          eventName: item.eventName,
-          eventDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days from now as placeholder
-          section: item.section,
-          row: item.row,
-          seat: item.seats && item.seats.length > 0 ? item.seats[0] : undefined,
-          ticketType: item.offerName,
-          purchaseDate: new Date().toISOString(),
-          price: item.price,
-          isResale: item.isResale || false,
-          isListed: false,
-        }))
+              // Call purchaseTicket instruction
+              const tx = await program.methods
+                .purchaseTicket(ticketId)
+                .accounts({
+                  eventAccount: eventAccount,
+                  ticketAccount: ticketPda,
+                  buyer: wallet.publicKey,
+                  systemProgram: SystemProgram.programId,
+                })
+                .rpc()
 
-        // Get existing tickets or initialize empty array
-        const existingTickets = localStorage.getItem("purchasedTickets")
-        let allTickets = []
-
-        if (existingTickets) {
-          try {
-            allTickets = JSON.parse(existingTickets)
-          } catch (error) {
-            console.error("Error parsing existing tickets:", error)
-            allTickets = []
+              console.log("Ticket purchase transaction:", tx)
+            }
           }
+
+          toast({
+            title: "Blockchain tickets purchased",
+            description: "Your tickets have been successfully purchased on the blockchain.",
+          })
+        } catch (error) {
+          console.error("Error processing blockchain transactions:", error)
+          toast({
+            title: "Blockchain purchase failed",
+            description: "Failed to purchase tickets on blockchain, but continuing with checkout.",
+            variant: "destructive",
+          })
         }
-
-        // Combine existing and new tickets
-        allTickets = [...allTickets, ...purchasedTickets]
-        localStorage.setItem("purchasedTickets", JSON.stringify(allTickets))
-
-        // Clear the cart
-        clearCart()
-
-        // Close the sheet
-        setSheetOpen(false)
-
-        // Call the onCheckoutComplete callback if provided
-        if (onCheckoutComplete) {
-          onCheckoutComplete()
-        }
-
-        // Redirect to success page
-        router.push("/checkout/success")
       }
+
+      // Create a cart in the database
+      const response = await fetch("/api/cart", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          teamId: team.id,
+          items: cart,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to create cart")
+      }
+
+      const cartData = await response.json()
+
+      // Process checkout
+      const checkoutResponse = await fetch("/api/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          cartId: cartData.id,
+          teamId: team.id,
+        }),
+      })
+
+      if (!checkoutResponse.ok) {
+        throw new Error("Failed to process checkout")
+      }
+
+      const checkoutData = await checkoutResponse.json()
+
+      // Clear the cart
+      clearCart()
+
+      // Close the sheet
+      setSheetOpen(false)
+
+      // Call the onCheckoutComplete callback if provided
+      if (onCheckoutComplete) {
+        onCheckoutComplete()
+      }
+
+      // Show success message
+      toast({
+        title: "Purchase successful",
+        description: "Your tickets have been purchased successfully.",
+      })
+
+      // Redirect to success page
+      router.push(`/checkout/success?orderId=${checkoutData.orderId}`)
     } catch (error) {
       console.error("Error processing checkout:", error)
-
-      // If API fails, still proceed with checkout and save tickets
-      const orderId = Math.floor(Math.random() * 1000000)
-        .toString()
-        .padStart(6, "0")
-
-      // Save purchased tickets
-      const purchasedTickets = cart.map((item) => ({
-        id: "ticket_" + Math.random().toString(36).substring(2, 10),
-        orderId: orderId,
-        eventId: item.eventId,
-        eventName: item.eventName,
-        eventDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days from now as placeholder
-        section: item.section,
-        row: item.row,
-        seat: item.seats && item.seats.length > 0 ? item.seats[0] : undefined,
-        ticketType: item.offerName,
-        purchaseDate: new Date().toISOString(),
-        price: item.price,
-        isResale: item.isResale || false,
-        isListed: false,
-      }))
-
-      // Get existing tickets or initialize empty array
-      const existingTickets = localStorage.getItem("purchasedTickets")
-      let allTickets = []
-
-      if (existingTickets) {
-        try {
-          allTickets = JSON.parse(existingTickets)
-        } catch (error) {
-          console.error("Error parsing existing tickets:", error)
-          allTickets = []
-        }
-      }
-
-      // Combine existing and new tickets
-      allTickets = [...allTickets, ...purchasedTickets]
-      localStorage.setItem("purchasedTickets", JSON.stringify(allTickets))
-
-      setTimeout(() => {
-        clearCart()
-        setSheetOpen(false)
-
-        if (onCheckoutComplete) {
-          onCheckoutComplete()
-        }
-
-        router.push("/checkout/success")
-      }, 1500)
+      toast({
+        title: "Checkout failed",
+        description: "There was an error processing your purchase. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setIsProcessing(false)
     }
@@ -247,11 +263,11 @@ export function CartSheet({ children, onCheckoutComplete, open, onOpenChange }: 
               </div>
             </div>
 
-            <SheetFooter>
+            <SheetFooter className="flex flex-col space-y-2">
               <Button className="w-full" size="lg" onClick={handleCheckout} disabled={isProcessing}>
                 {isProcessing ? (
                   <div className="flex items-center">
-                    <div className="animate-spin mr-2 h-4 w-4 border-2 border-current border-t-transparent rounded-full"></div>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Processing...
                   </div>
                 ) : (
@@ -260,6 +276,9 @@ export function CartSheet({ children, onCheckoutComplete, open, onOpenChange }: 
                     Checkout
                   </>
                 )}
+              </Button>
+              <Button variant="outline" className="w-full" asChild>
+                <Link href="/cart">View Full Cart</Link>
               </Button>
             </SheetFooter>
           </>
