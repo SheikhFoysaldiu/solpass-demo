@@ -20,9 +20,9 @@ export const createTeam = async (name: string): Promise<Team & { privateKey: str
   }
 }
 
-export const getTeamByPublicKey = async (publicKey: string): Promise<Team> => {
+export const getTeamByPrivateKey = async (privateKey: string): Promise<Team> => {
   try {
-    const response = await apiClient.get(`/teams?publicKey=${publicKey}`)
+    const response = await apiClient.get(`/teams?privateKey=${privateKey}`)
     return response.data
   } catch (error) {
     console.error("Error fetching team:", error)

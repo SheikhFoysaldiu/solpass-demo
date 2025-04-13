@@ -18,9 +18,8 @@ import { useTeamStore } from "@/store/useTeamStore"
 
 export default function WalletPage() {
   const router = useRouter()
-  const { setPrivateKey: setWalletPrivateKey, privateKey: Pvkey } = useWalletStore()
+  const { setPrivateKey: setWalletPrivateKey, privateKey: Pvkey, getKeypair } = useWalletStore()
   const { team, clearTeam } = useTeamStore()
-  const [name, setName] = useState("")
   const [privateKey, setPrivateKey] = useState("")
   const [generatedKeypair, setGeneratedKeypair] = useState<Keypair | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -36,48 +35,10 @@ export default function WalletPage() {
     }
   }, [team, router])
 
-  // If wallet is already connected, redirect to events page
-  useEffect(() => {
-    if (Pvkey) {
-      router.push("/events")
-    }
-  }, [Pvkey, router])
 
   const connection = new Connection(clusterApiUrl("devnet"), "confirmed")
 
-  // Generate new keypair
-  const generateKeypair = () => {
-    if (!name) {
-      setError("Please enter a name for your wallet")
-      return
-    }
 
-    setIsGenerating(true)
-    setError("")
-
-    try {
-      // Generate a new keypair
-      const newKeypair = Keypair.generate()
-      setGeneratedKeypair(newKeypair)
-
-      // Set the private key for display
-      const privateKeyBase58 = bs58.encode(newKeypair.secretKey)
-      setPrivateKey(privateKeyBase58)
-
-      toast.success("New wallet generated successfully", {
-        description: "Remember to save your private key securely!",
-      })
-
-      // Get initial balance
-      checkBalance(newKeypair.publicKey)
-    } catch (err) {
-      console.error("Failed to generate keypair:", err)
-      setError("Failed to generate keypair")
-      toast.error("Failed to generate keypair")
-    } finally {
-      setIsGenerating(false)
-    }
-  }
 
   // Request airdrop
   const requestAirdrop = async () => {
@@ -193,43 +154,35 @@ export default function WalletPage() {
                 <CardDescription>Generate a new wallet for testing on Solana Devnet</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Your Name</Label>
-                  <Input
-                    id="name"
-                    placeholder="Enter your name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                </div>
 
-                {generatedKeypair && (
-                  <>
-                    <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-md">
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-slate-500">Public Key</span>
-                      </div>
-                      <p className="text-xs break-all font-mono p-2 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700">
-                        {generatedKeypair.publicKey.toString()}
-                      </p>
+
+
+                <>
+                  <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-md">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-slate-500">Public Key</span>
                     </div>
+                    <p className="text-xs break-all font-mono p-2 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700">
+                      {getKeypair() ? getKeypair()?.publicKey.toString() : "No keypair available"}
+                    </p>
+                  </div>
 
-                    <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-md">
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-slate-500">Private Key (keep it safe!)</span>
-                      </div>
-                      <p className="text-xs break-all font-mono p-2 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700">
-                        {privateKey}
-                      </p>
+                  <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-md">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-slate-500">Private Key (keep it safe!)</span>
                     </div>
+                    <p className="text-xs break-all font-mono p-2 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700">
+                      {Pvkey}
+                    </p>
+                  </div>
 
-                    <Alert>
-                      <CreditCard className="h-4 w-4" />
-                      <AlertTitle>Current Balance: {balance} SOL</AlertTitle>
-                      <AlertDescription>This is a devnet wallet for testing purposes only</AlertDescription>
-                    </Alert>
-                  </>
-                )}
+                  <Alert>
+                    <CreditCard className="h-4 w-4" />
+                    <AlertTitle>Current Balance: {balance} SOL</AlertTitle>
+                    <AlertDescription>This is a devnet wallet for testing purposes only</AlertDescription>
+                  </Alert>
+                </>
+
 
                 {error && (
                   <Alert variant="destructive">
@@ -238,50 +191,34 @@ export default function WalletPage() {
                 )}
               </CardContent>
               <CardFooter className="flex flex-col gap-3">
-                {!generatedKeypair ? (
-                  <Button className="w-full" onClick={generateKeypair} disabled={isGenerating}>
-                    {isGenerating ? (
+
+                <div className="flex gap-3 w-full">
+                  <Button className="flex-1" variant="outline" onClick={requestAirdrop} disabled={isFunding}>
+                    {isFunding ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Generating...
+                        Funding...
                       </>
                     ) : (
                       <>
-                        <Plus className="mr-2 h-4 w-4" />
-                        Generate Keypair
+                        <CreditCard className="mr-2 h-4 w-4" />
+                        Request Airdrop
                       </>
                     )}
                   </Button>
-                ) : (
-                  <>
-                    <div className="flex gap-3 w-full">
-                      <Button className="flex-1" variant="outline" onClick={requestAirdrop} disabled={isFunding}>
-                        {isFunding ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Funding...
-                          </>
-                        ) : (
-                          <>
-                            <CreditCard className="mr-2 h-4 w-4" />
-                            Request Airdrop
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        className="flex-1"
-                        onClick={() => {
-                          // Store the private key in Zustand before navigating
-                          setWalletPrivateKey(privateKey)
-                          router.push("/events")
-                        }}
-                      >
-                        <ArrowRight className="mr-2 h-4 w-4" />
-                        Continue
-                      </Button>
-                    </div>
-                  </>
-                )}
+                  <Button
+                    className="flex-1"
+                    onClick={() => {
+                      // Store the private key in Zustand before navigating
+                      setWalletPrivateKey(Pvkey ?? "")
+                      router.push("/events")
+                    }}
+                  >
+                    <ArrowRight className="mr-2 h-4 w-4" />
+                    Continue
+                  </Button>
+                </div>
+
               </CardFooter>
             </Card>
           </TabsContent>

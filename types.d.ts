@@ -5,6 +5,7 @@ export type Team = {
   publicKey: string
   createdAt: Date
   updatedAt: Date
+  secretKey: string
 }
 
 export type Event = {

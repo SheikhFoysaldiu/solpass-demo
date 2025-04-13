@@ -11,17 +11,19 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Key, Plus } from "lucide-react"
 import { toast } from "sonner"
 import { useTeamStore } from "@/store/useTeamStore"
-import { createTeam, getTeamByPublicKey } from "@/lib/api-client"
+import { createTeam, getTeamByPrivateKey } from "@/lib/api-client"
+import { useWalletStore } from "@/store/useWalletStore"
 
 export default function LoginPage() {
   const router = useRouter()
   const { team, setTeam } = useTeamStore()
-  const [teamPublicKey, setTeamPublicKey] = useState("")
+  const [teamPrivateKey, setTeamPrivateKey] = useState("")
   const [teamName, setTeamName] = useState("")
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [error, setError] = useState("")
-
+  const { setPrivateKey: setWalletPrivateKey, privateKey: Pvkey } =
+    useWalletStore();
   // If team is already logged in, redirect to wallet page
   useEffect(() => {
     if (team) {
@@ -30,8 +32,8 @@ export default function LoginPage() {
   }, [team, router])
 
   const handleLogin = async () => {
-    if (!teamPublicKey) {
-      setError("Please enter your team public key")
+    if (!teamPrivateKey) {
+      setError("Please enter your team private key")
       return
     }
 
@@ -40,7 +42,7 @@ export default function LoginPage() {
 
     try {
       // Fetch team from the database
-      const teamData = await getTeamByPublicKey(teamPublicKey)
+      const teamData = await getTeamByPrivateKey(teamPrivateKey)
 
       // Store the team in state
       setTeam({
@@ -48,7 +50,7 @@ export default function LoginPage() {
         publicKey: teamData.publicKey,
         name: teamData.name,
       })
-
+      setWalletPrivateKey(teamData.secretKey) // Store private key temporarily
       toast.success("Login successful", {
         description: "Welcome back to SolPass!",
       })
@@ -76,7 +78,7 @@ export default function LoginPage() {
     try {
       // Create team in the database
       const newTeam = await createTeam(teamName)
-
+      setWalletPrivateKey(newTeam.privateKey) // Store private key temporarily
       // Store the team in state
       setTeam({
         id: newTeam.id,
@@ -130,8 +132,8 @@ export default function LoginPage() {
                   <Input
                     id="teamPublicKey"
                     placeholder="Enter your team public key"
-                    value={teamPublicKey}
-                    onChange={(e) => setTeamPublicKey(e.target.value)}
+                    value={teamPrivateKey}
+                    onChange={(e) => setTeamPrivateKey(e.target.value)}
                   />
                 </div>
 
