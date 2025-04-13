@@ -11,6 +11,11 @@
       "name": "TICKET_TAG",
       "type": "bytes",
       "value": "[84, 73, 67, 75, 69, 84, 95, 83, 84, 65, 84, 69]"
+    },
+    {
+      "name": "TICKET_HISTORY_TAG",
+      "type": "bytes",
+      "value": "[72, 73, 83, 84, 79, 82, 89]"
     }
   ],
   "instructions": [
@@ -67,6 +72,17 @@
         { "name": "buyer", "type": "string" },
         { "name": "newPrice", "type": "u64" }
       ]
+    },
+    {
+      "name": "distributeRoyalty",
+      "accounts": [
+        { "name": "ticketAccount", "isMut": false, "isSigner": false },
+        { "name": "eventAccount", "isMut": true, "isSigner": false },
+        { "name": "payer", "isMut": true, "isSigner": true },
+        { "name": "teamWallet", "isMut": true, "isSigner": false },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [{ "name": "ticketId", "type": "string" }]
     }
   ],
   "accounts": [
@@ -100,7 +116,8 @@
           { "name": "ticketId", "type": "string" },
           { "name": "purchaseDate", "type": "i64" },
           { "name": "ticketPrice", "type": "u64" },
-          { "name": "resellCount", "type": "u8" }
+          { "name": "resellCount", "type": "u8" },
+          { "name": "accumulatedRoyalty", "type": "u64" }
         ]
       }
     },
