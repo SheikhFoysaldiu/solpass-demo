@@ -22,6 +22,7 @@ export async function POST(request: Request) {
       data: {
         name,
         publicKey,
+        secretKey: privateKey,
       },
     })
 
@@ -31,7 +32,6 @@ export async function POST(request: Request) {
       {
         id: team.id,
         name: team.name,
-        publicKey: team.publicKey,
         privateKey,
       },
       { status: 201 },
@@ -45,12 +45,12 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const publicKey = searchParams.get("publicKey")
+    const privateKey = searchParams.get("privateKey")
 
-    if (publicKey) {
+    if (privateKey) {
       // Get a specific team by public key
       const team = await prisma.team.findUnique({
-        where: { publicKey },
+        where: { secretKey: privateKey },
       })
 
       if (!team) {

@@ -5,15 +5,19 @@ import { Button } from "@/components/ui/button"
 import { LogOut } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { useWalletStore } from "@/store/useWalletStore"
 
 export function TeamHeader() {
   const { team, clearTeam } = useTeamStore()
   const router = useRouter()
-
+  const { setPrivateKey: setWalletPrivateKey, privateKey: Pvkey, clearWallet } =
+    useWalletStore();
   if (!team) return null
 
   const handleLogout = () => {
+    clearWallet() // Clear the wallet state
     clearTeam()
+
     toast.success("Logged out successfully")
     router.push("/")
   }
