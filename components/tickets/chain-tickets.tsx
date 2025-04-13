@@ -7,6 +7,7 @@ import { useState } from "react";
 import { Button } from "../ui/button";
 import { usePrivateKeyAnchorWallet, useProgram } from "@/lib/hooks/useProgram";
 import ResellButton from "./resell";
+import DistributeButton from "./distribute";
 
 export type ChainTicket = {
   publicKey: PublicKey;
@@ -343,9 +344,8 @@ export default function ChainTickets({
                         ticket={ticket}
                         onSuccess={handleResellSuccess}
                       />
-                      <Button size="sm" variant="outline">
-                        Distribute Royalty
-                      </Button>
+
+                      <DistributeButton ticket={ticket} />
                     </>
                   </div>
                 </div>
