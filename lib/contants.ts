@@ -8,5 +8,5 @@ export const MOTHER = new Uint8Array([
 ]);
 
 export const programId = new PublicKey(
-  "GsHe1b4FcRqCQMgfuqKg3D6Hi2aEFQrcRoQneDYLxyUY"
+  "BG4wuworHjpRsxE5Wm17Xnp7feyYKizzN2iZ5gZjbsQC"
 );

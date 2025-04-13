@@ -81,7 +81,7 @@ export default function CartPage() {
             if (item.eventId && item.chainEventKey) {
               const ticketId = uuidv4().slice(0, 8); // Generate unique ticket ID
 
-              const response = await fetchCart(cartId);
+              // const response = await fetchCart(cartId);
               // Find PDA for event account
               const eventAccount = new PublicKey(item.chainEventKey);
 
@@ -95,14 +95,19 @@ export default function CartPage() {
                 program.programId
               );
 
-              console.log("ticketPda", ticketPda.toBase58());
+              console.log(
+                "ticketPda",
+                ticketPda.toBase58(),
+                "evendAcc",
+                eventAccount.toBase58()
+              );
               // Call purchaseTicket instruction
               const tx = await program.methods
-                .purchaseTicket(ticketId)
+                .purchaseTicket(ticketId, wallet.publicKey.toBase58())
                 .accounts({
                   eventAccount: eventAccount,
                   ticketAccount: ticketPda,
-                  buyer: wallet.publicKey,
+                  payer: wallet.publicKey,
                   systemProgram: SystemProgram.programId,
                 })
                 .rpc();
@@ -112,7 +117,7 @@ export default function CartPage() {
               // Save the purchased tickets to localStorage
               const purchasedTickets = cart.map((item) => ({
                 id: "ticket_" + Math.random().toString(36).substring(2, 10),
-                orderId: response.cartId,
+                orderId: cartId,
                 eventId: item.eventId,
                 eventName: item.eventName,
                 eventDate: new Date(

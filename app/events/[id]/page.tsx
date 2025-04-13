@@ -706,7 +706,10 @@ export default function EventPage() {
               {event.description || "No description available for this event."}
             </p>
           </div>
-          <ChainTickets eventPublicKey={chainEventKey ?? undefined} />
+          <ChainTickets
+            eventPublicKey={chainEventKey ?? undefined}
+            showOwners
+          />
         </div>
 
         <div>

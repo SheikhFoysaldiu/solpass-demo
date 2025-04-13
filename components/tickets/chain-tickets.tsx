@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 
 import { Button } from "../ui/button";
 import { usePrivateKeyAnchorWallet, useProgram } from "@/lib/hooks/useProgram";
+import ResellButton from "./resell";
 
 export type ChainTicket = {
   publicKey: PublicKey;
@@ -38,7 +39,7 @@ export function useEventTickets(eventPublicKey?: string) {
       const tickets = await program.account.ticketAccount.all([
         {
           memcmp: {
-            offset: 8 + 32, // Skip discriminator (8 bytes) and owner public key (32 bytes)
+            offset: 8,
             bytes: eventPublicKey,
           },
         },
@@ -109,7 +110,7 @@ export default function ChainTickets({
     refetch,
   } = eventPublicKey ? useEventTickets(eventPublicKey) : useMyTickets();
 
-  const wallet = useAnchorWallet();
+  const wallet = usePrivateKeyAnchorWallet();
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp * 1000).toLocaleDateString();
@@ -132,7 +133,8 @@ export default function ChainTickets({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {tickets.map((ticket) => {
             const isOwned =
-              wallet?.publicKey.toString() === ticket.account.owner.toString();
+              wallet?.wallet.publicKey.toString() ===
+              ticket.account.owner.toString();
 
             return (
               <div
@@ -174,6 +176,7 @@ export default function ChainTickets({
                     </p>
                   </div>
                 )}
+                <ResellButton />
               </div>
             );
           })}
