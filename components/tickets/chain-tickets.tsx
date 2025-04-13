@@ -1,10 +1,10 @@
 import { PublicKey } from "@solana/web3.js";
-import { useAnchorWallet } from "@solana/wallet-adapter-react";
+import { AnchorWallet, useAnchorWallet } from "@solana/wallet-adapter-react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "../ui/button";
-import { useProgram } from "@/lib/hooks/useProgram";
+import { usePrivateKeyAnchorWallet, useProgram } from "@/lib/hooks/useProgram";
 
 export type ChainTicket = {
   publicKey: PublicKey;
@@ -17,8 +17,18 @@ export type ChainTicket = {
 };
 
 export function useEventTickets(eventPublicKey?: string) {
-  const wallet = useAnchorWallet();
+  const w = useAnchorWallet();
   const program = useProgram();
+  const privateWallet = usePrivateKeyAnchorWallet();
+
+  let wallet: AnchorWallet | null = null;
+  if (w) {
+    wallet = w;
+  } else {
+    if (privateWallet) {
+      wallet = privateWallet.wallet;
+    }
+  }
 
   const fetchEventTickets = async () => {
     if (!wallet || !program || !eventPublicKey) return [];

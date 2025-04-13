@@ -20,10 +20,10 @@ import {
 } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
 import { formatCurrency } from "@/lib/utils";
-import { processCheckout } from "@/lib/api-client";
+import { fetchCart, processCheckout } from "@/lib/api-client";
 import Link from "next/link";
-import { useProgram } from "@/lib/hooks/useProgram";
-import { useAnchorWallet } from "@solana/wallet-adapter-react";
+import { usePrivateKeyAnchorWallet, useProgram } from "@/lib/hooks/useProgram";
+import { AnchorWallet, useAnchorWallet } from "@solana/wallet-adapter-react";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import { v4 as uuidv4 } from "uuid";
 import { useToast } from "@/hooks/use-toast";
@@ -33,7 +33,8 @@ export default function CartPage() {
   const { cart, removeFromCart, clearCart } = useCart();
   const [isProcessing, setIsProcessing] = useState(false);
   const program = useProgram();
-  const wallet = useAnchorWallet();
+  const w = useAnchorWallet();
+  const privateWallet = usePrivateKeyAnchorWallet();
   const { toast } = useToast();
 
   const totalItems = cart.reduce((total, item) => total + item.quantity, 0);
@@ -49,19 +50,38 @@ export default function CartPage() {
 
   // Update the handleCheckout function to save purchased tickets to localStorage
   const handleCheckout = async () => {
+    const orderId = Math.floor(Math.random() * 1000000)
+      .toString()
+      .padStart(6, "0");
     setIsProcessing(true);
 
     try {
       const cartId = localStorage.getItem("cartId");
 
+      let wallet: AnchorWallet | null = null;
+
+      if (w) {
+        wallet = w;
+      } else {
+        if (privateWallet) {
+          wallet = privateWallet.wallet;
+        }
+      }
+
+      console.log(wallet, program, "d");
+
       // Process blockchain transactions first if wallet is connected
-      if (wallet && program && cart.length > 0) {
+      if (wallet && program && cart.length > 0 && cartId) {
         try {
+          console.log("here");
           // Process each ticket purchase on the blockchain
+          console.log(cart, "cart");
           for (const item of cart) {
+            console.log(item, "item");
             if (item.eventId && item.chainEventKey) {
               const ticketId = uuidv4().slice(0, 8); // Generate unique ticket ID
 
+              const response = await fetchCart(cartId);
               // Find PDA for event account
               const eventAccount = new PublicKey(item.chainEventKey);
 
@@ -74,6 +94,8 @@ export default function CartPage() {
                 ],
                 program.programId
               );
+
+              console.log("ticketPda", ticketPda.toBase58());
               // Call purchaseTicket instruction
               const tx = await program.methods
                 .purchaseTicket(ticketId)
@@ -90,7 +112,7 @@ export default function CartPage() {
               // Save the purchased tickets to localStorage
               const purchasedTickets = cart.map((item) => ({
                 id: "ticket_" + Math.random().toString(36).substring(2, 10),
-                orderId: response.orderId,
+                orderId: response.cartId,
                 eventId: item.eventId,
                 eventName: item.eventName,
                 eventDate: new Date(
@@ -139,19 +161,6 @@ export default function CartPage() {
             description:
               "Your tickets have been successfully purchased on the blockchain.",
           });
-          if (cartId) {
-            // Process the checkout via the API
-            const response = await processCheckout(cartId);
-
-            // Save the order ID
-            localStorage.setItem("orderId", response.orderId);
-
-            // Clear the cart
-            clearCart();
-
-            // Redirect to success page
-            router.push("/checkout/success");
-          }
         } catch (error) {
           console.error("Error processing blockchain transactions:", error);
           toast({
@@ -173,9 +182,6 @@ export default function CartPage() {
       //   router.push("/checkout/success");
       // }, 1500);
       // If API fails, still proceed with checkout and save tickets
-      const orderId = Math.floor(Math.random() * 1000000)
-        .toString()
-        .padStart(6, "0");
 
       // Save purchased tickets
       const purchasedTickets = cart.map((item) => ({
@@ -217,6 +223,8 @@ export default function CartPage() {
         clearCart();
         router.push("/checkout/success");
       }, 1500);
+    } finally {
+      setIsProcessing(false);
     }
   };
 

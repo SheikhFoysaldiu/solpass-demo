@@ -22,6 +22,7 @@ interface CartItem {
   fees: number;
   offerName: string;
   chainEventKey?: string;
+  isResale?: boolean;
 }
 
 interface CartContextType {

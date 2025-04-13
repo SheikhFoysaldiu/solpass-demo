@@ -71,6 +71,8 @@ export function CartSheet({
 
     try {
       const cartId = localStorage.getItem("cartId");
+      if (!cartId) return;
+      const response = await processCheckout(cartId);
 
       // Process blockchain transactions first if wallet is connected
       if (wallet && program && cart.length > 0) {
@@ -92,6 +94,19 @@ export function CartSheet({
                 ],
                 program.programId
               );
+
+              // Call purchaseTicket instruction
+              const tx = await program.methods
+                .purchaseTicket(ticketId)
+                .accounts({
+                  eventAccount: eventAccount,
+                  ticketAccount: ticketPda,
+                  buyer: wallet.publicKey,
+                  systemProgram: SystemProgram.programId,
+                })
+                .rpc();
+
+              console.log("Ticket purchase transaction:", tx);
               // Save the purchased tickets to localStorage
               const purchasedTickets = cart.map((item) => ({
                 id: "ticket_" + Math.random().toString(36).substring(2, 10),
@@ -136,19 +151,6 @@ export function CartSheet({
 
               // Clear the cart
               clearCart();
-
-              // Call purchaseTicket instruction
-              const tx = await program.methods
-                .purchaseTicket(ticketId)
-                .accounts({
-                  eventAccount: eventAccount,
-                  ticketAccount: ticketPda,
-                  buyer: wallet.publicKey,
-                  systemProgram: SystemProgram.programId,
-                })
-                .rpc();
-
-              console.log("Ticket purchase transaction:", tx);
             }
           }
 
@@ -349,7 +351,10 @@ export function CartSheet({
             </div>
 
             <SheetFooter>
-              <Button
+              <Button className="w-full" size="lg">
+                <Link href="/cart">View Full Cart</Link>
+              </Button>
+              {/* <Button
                 className="w-full"
                 size="lg"
                 onClick={handleCheckout}
@@ -366,7 +371,7 @@ export function CartSheet({
                     Checkout
                   </>
                 )}
-              </Button>
+              </Button> */}
             </SheetFooter>
           </>
         )}

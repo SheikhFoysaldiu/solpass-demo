@@ -418,6 +418,7 @@ export default function EventPage() {
       ),
       offerName: ticketOffer.offerName,
       isResale: false,
+      chainEventKey: chainEventKey ?? undefined,
     };
 
     addToCart(ticketData);

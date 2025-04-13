@@ -37,8 +37,8 @@ import { useWalletStore } from "@/store/useWalletStore";
 
 export default function HomePage() {
   const router = useRouter();
-  const anchorWallet = useAnchorWallet();
-  const { setPrivateKey: setWalletPrivateKey } = useWalletStore();
+  const { setPrivateKey: setWalletPrivateKey, privateKey: Pvkey } =
+    useWalletStore();
   const [name, setName] = useState("");
   const [privateKey, setPrivateKey] = useState("");
   const [generatedKeypair, setGeneratedKeypair] = useState<Keypair | null>(
@@ -52,10 +52,10 @@ export default function HomePage() {
 
   // If wallet is already connected, redirect to events page
   useEffect(() => {
-    if (anchorWallet) {
+    if (Pvkey) {
       router.push("/events");
     }
-  }, [anchorWallet, router]);
+  }, [Pvkey, router]);
 
   const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
 
