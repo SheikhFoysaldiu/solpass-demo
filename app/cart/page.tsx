@@ -1,35 +1,56 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import { ShoppingCart, Trash2, CreditCard, ArrowLeft, Loader2 } from "lucide-react"
-import { useCart } from "@/hooks/use-cart"
-import { formatCurrency } from "@/lib/utils"
-import Link from "next/link"
-import { usePrivateKeyAnchorWallet, useProgram } from "@/lib/hooks/useProgram"
-import { type AnchorWallet, useAnchorWallet } from "@solana/wallet-adapter-react"
-import { PublicKey, SystemProgram } from "@solana/web3.js"
-import { v4 as uuidv4 } from "uuid"
-import { useToast } from "@/hooks/use-toast"
-import { useTeamStore } from "@/store/useTeamStore"
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import {
+  ShoppingCart,
+  Trash2,
+  CreditCard,
+  ArrowLeft,
+  Loader2,
+} from "lucide-react";
+import { useCart } from "@/hooks/use-cart";
+import { formatCurrency } from "@/lib/utils";
+import Link from "next/link";
+import { usePrivateKeyAnchorWallet, useProgram } from "@/lib/hooks/useProgram";
+import {
+  type AnchorWallet,
+  useAnchorWallet,
+} from "@solana/wallet-adapter-react";
+import { PublicKey, SystemProgram } from "@solana/web3.js";
+import { v4 as uuidv4 } from "uuid";
+import { useToast } from "@/hooks/use-toast";
+import { useTeamStore } from "@/store/useTeamStore";
 
 export default function CartPage() {
-  const router = useRouter()
-  const { cart, removeFromCart, clearCart } = useCart()
-  const [isProcessing, setIsProcessing] = useState(false)
-  const program = useProgram()
-  const w = useAnchorWallet()
-  const privateWallet = usePrivateKeyAnchorWallet()
-  const { toast } = useToast()
-  const { team } = useTeamStore()
+  const router = useRouter();
+  const { cart, removeFromCart, clearCart } = useCart();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const program = useProgram();
+  const w = useAnchorWallet();
+  const privateWallet = usePrivateKeyAnchorWallet();
+  const { toast } = useToast();
+  const { team } = useTeamStore();
 
-  const totalItems = cart.reduce((total, item) => total + item.quantity, 0)
-  const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0)
-  const fees = cart.reduce((total, item) => total + item.fees * item.quantity, 0)
-  const total = subtotal + fees
+  const totalItems = cart.reduce((total, item) => total + item.quantity, 0);
+  const subtotal = cart.reduce(
+    (total, item) => total + item.price * item.quantity,
+    0
+  );
+  const fees = cart.reduce(
+    (total, item) => total + item.fees * item.quantity,
+    0
+  );
+  const total = subtotal + fees;
 
   const handleCheckout = async () => {
     if (!team?.id) {
@@ -37,40 +58,44 @@ export default function CartPage() {
         title: "Authentication required",
         description: "Please log in to complete your purchase",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
-    setIsProcessing(true)
+    setIsProcessing(true);
 
     try {
       // Process blockchain transactions first if wallet is connected
       if ((w || privateWallet?.wallet) && program && cart.length > 0) {
         try {
-          let wallet: AnchorWallet | null = null
+          let wallet: AnchorWallet | null = null;
 
           if (w) {
-            wallet = w
+            wallet = w;
           } else if (privateWallet) {
-            wallet = privateWallet.wallet
+            wallet = privateWallet.wallet;
           }
 
           if (wallet) {
             // Process each ticket purchase on the blockchain
             for (const item of cart) {
               if (item.eventId && item.chainEventKey) {
-                const ticketId = uuidv4().slice(0, 8) // Generate unique ticket ID
+                const ticketId = uuidv4().slice(0, 8); // Generate unique ticket ID
 
                 // Find PDA for event account
-                const eventAccount = new PublicKey(item.chainEventKey)
+                const eventAccount = new PublicKey(item.chainEventKey);
 
                 // Find PDA for ticket account
                 const [ticketPda] = PublicKey.findProgramAddressSync(
-                  [Buffer.from("TICKET_STATE"), eventAccount.toBuffer(), Buffer.from(ticketId)],
-                  program.programId,
-                )
+                  [
+                    Buffer.from("TICKET_STATE"),
+                    eventAccount.toBuffer(),
+                    Buffer.from(ticketId),
+                  ],
+                  program.programId
+                );
 
-                console.log("ticketPda", ticketPda.toBase58())
+                console.log("ticketPda", ticketPda.toBase58());
 
                 // Call purchaseTicket instruction
                 const tx = await program.methods
@@ -81,24 +106,26 @@ export default function CartPage() {
                     buyer: wallet.publicKey,
                     systemProgram: SystemProgram.programId,
                   })
-                  .rpc()
+                  .rpc();
 
-                console.log("Ticket purchase transaction:", tx)
+                console.log("Ticket purchase transaction:", tx);
               }
             }
 
             toast({
               title: "Blockchain tickets purchased",
-              description: "Your tickets have been successfully purchased on the blockchain.",
-            })
+              description:
+                "Your tickets have been successfully purchased on the blockchain.",
+            });
           }
         } catch (error) {
-          console.error("Error processing blockchain transactions:", error)
+          console.error("Error processing blockchain transactions:", error);
           toast({
             title: "Blockchain purchase failed",
-            description: "Failed to purchase tickets on blockchain, but continuing with checkout.",
+            description:
+              "Failed to purchase tickets on blockchain, but continuing with checkout.",
             variant: "destructive",
-          })
+          });
         }
       }
 
@@ -112,13 +139,13 @@ export default function CartPage() {
           teamId: team.id,
           items: cart,
         }),
-      })
+      });
 
       if (!response.ok) {
-        throw new Error("Failed to create cart")
+        throw new Error("Failed to create cart");
       }
 
-      const cartData = await response.json()
+      const cartData = await response.json();
 
       // Process checkout
       const checkoutResponse = await fetch("/api/checkout", {
@@ -130,43 +157,46 @@ export default function CartPage() {
           cartId: cartData.id,
           teamId: team.id,
         }),
-      })
+      });
 
       if (!checkoutResponse.ok) {
-        throw new Error("Failed to process checkout")
+        throw new Error("Failed to process checkout");
       }
 
-      const checkoutData = await checkoutResponse.json()
+      const checkoutData = await checkoutResponse.json();
 
       // Clear the cart
-      clearCart()
+      clearCart();
 
       // Show success message
       toast({
         title: "Purchase successful",
         description: "Your tickets have been purchased successfully.",
-      })
+      });
 
       // Redirect to success page
-      router.push(`/checkout/success?orderId=${checkoutData.orderId}`)
+      router.push(`/checkout/success?orderId=${checkoutData.orderId}`);
     } catch (error) {
-      console.error("Error processing checkout:", error)
+      console.error("Error processing checkout:", error);
       toast({
         title: "Checkout failed",
-        description: "There was an error processing your purchase. Please try again.",
+        description:
+          "There was an error processing your purchase. Please try again.",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsProcessing(false)
+      setIsProcessing(false);
     }
-  }
+  };
 
   if (cart.length === 0) {
     return (
       <div className="container mx-auto py-16 px-4 text-center">
         <ShoppingCart className="mx-auto h-16 w-16 text-gray-300 mb-4" />
         <h1 className="text-2xl font-bold mb-2">Your cart is empty</h1>
-        <p className="text-gray-500 mb-6">Looks like you haven't added any tickets to your cart yet.</p>
+        <p className="text-gray-500 mb-6">
+          Looks like you haven't added any tickets to your cart yet.
+        </p>
         <Button asChild>
           <Link href="/events">
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -174,7 +204,7 @@ export default function CartPage() {
           </Link>
         </Button>
       </div>
-    )
+    );
   }
 
   return (
@@ -197,24 +227,34 @@ export default function CartPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {cart.map((item, index) => (
-                <div key={index} className="flex flex-col md:flex-row justify-between p-4 border rounded-lg">
+                <div
+                  key={index}
+                  className="flex flex-col md:flex-row justify-between p-4 border rounded-lg"
+                >
                   <div className="flex-1">
                     <h3 className="font-medium">{item.eventName}</h3>
                     <div className="text-sm text-gray-500 mt-1">
-                      {item.offerName} - {item.quantity} {item.quantity === 1 ? "ticket" : "tickets"}
+                      {item.offerName} - {item.quantity}{" "}
+                      {item.quantity === 1 ? "ticket" : "tickets"}
                     </div>
                     {item.section && item.row && (
                       <div className="text-sm text-gray-500">
                         Section {item.section}, Row {item.row}
-                        {item.seats && item.seats.length > 0 && <>, Seats: {item.seats.join(", ")}</>}
+                        {item.seats && item.seats.length > 0 && (
+                          <>, Seats: {item.seats.join(", ")}</>
+                        )}
                       </div>
                     )}
                   </div>
 
                   <div className="flex flex-row md:flex-col items-center justify-between mt-4 md:mt-0">
                     <div className="text-right">
-                      <div className="font-semibold">{formatCurrency(item.price * item.quantity)}</div>
-                      <div className="text-xs text-gray-500">+ {formatCurrency(item.fees * item.quantity)} fees</div>
+                      <div className="font-semibold">
+                        {formatCurrency(item.price * item.quantity)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        + {formatCurrency(item.fees * item.quantity)} fees
+                      </div>
                     </div>
 
                     <Button
@@ -253,7 +293,12 @@ export default function CartPage() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button className="w-full" size="lg" onClick={handleCheckout} disabled={isProcessing}>
+              <Button
+                className="w-full"
+                size="lg"
+                onClick={handleCheckout}
+                disabled={isProcessing}
+              >
                 {isProcessing ? (
                   <div className="flex items-center">
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -271,5 +316,5 @@ export default function CartPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
