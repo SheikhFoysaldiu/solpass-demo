@@ -1,13 +1,14 @@
 import { PublicKey } from "@solana/web3.js";
 import { AnchorWallet, useAnchorWallet } from "@solana/wallet-adapter-react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "../ui/button";
 import { usePrivateKeyAnchorWallet, useProgram } from "@/lib/hooks/useProgram";
 import ResellButton from "./resell";
 import DistributeButton from "./distribute";
+import { Badge } from "../ui/badge";
 
 export type ChainTicket = {
   publicKey: PublicKey;
@@ -18,6 +19,8 @@ export type ChainTicket = {
     purchaseDate: number;
     ticketPrice?: number;
     resellCount: number;
+    accumulatedRoyalty: string;
+    royaltyDistributed: boolean;
   };
 };
 
@@ -271,27 +274,42 @@ export default function ChainTickets({
               ticket.account.owner.toString();
             const isExpanded =
               expandedCards[ticket.publicKey.toBase58()] || false;
+            const isRoyaltyDistributed = ticket.account.royaltyDistributed;
 
             return (
               <div
                 key={ticket.publicKey.toBase58()}
                 className={`border rounded-lg shadow-sm overflow-hidden ${
-                  isOwned ? "border-green-200" : "border-slate-200"
+                  isRoyaltyDistributed
+                    ? "border-purple-300"
+                    : isOwned
+                    ? "border-green-200"
+                    : "border-slate-200"
                 }`}
               >
                 {/* Card header */}
                 <div
                   className={`p-4 ${
-                    isOwned
+                    isRoyaltyDistributed
+                      ? "bg-gradient-to-br from-purple-50 to-purple-100"
+                      : isOwned
                       ? "bg-gradient-to-br from-green-50 to-green-100"
                       : "bg-gradient-to-br from-slate-50 to-slate-100"
                   }`}
                 >
                   <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="font-semibold">
-                        Ticket #{ticket.account.ticketId}
-                      </h3>
+                      <div className="flex items-center">
+                        <h3 className="font-semibold">
+                          Ticket #{ticket.account.ticketId}
+                        </h3>
+                        {isRoyaltyDistributed && (
+                          <Badge className="ml-2 bg-purple-600">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Royalty Paid
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-sm text-gray-600">
                         Purchased: {formatDate(ticket.account.purchaseDate)}
                       </p>
@@ -310,6 +328,20 @@ export default function ChainTickets({
                     </div>
                   </div>
 
+                  <div className="text-xs text-gray-600 mt-2">
+                    <p>Resell count: {ticket.account.resellCount}</p>
+                    <p>
+                      Total royalty:{" "}
+                      {parseFloat(ticket.account.accumulatedRoyalty) / 1000000}{" "}
+                      SOL
+                      {isRoyaltyDistributed && (
+                        <span className="text-purple-600 font-medium ml-2">
+                          (Distributed)
+                        </span>
+                      )}
+                    </p>
+                  </div>
+
                   {/* Owner information when showOwners is true */}
                   {showOwners && (
                     <div className="mt-3 pt-2 border-t">
@@ -322,31 +354,39 @@ export default function ChainTickets({
                 </div>
 
                 {/* Card actions */}
-                <div className="px-4 py-3 bg-white border-t flex justify-between items-center">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => toggleExpand(ticket.publicKey.toBase58())}
-                    className="text-gray-500 hover:text-gray-700"
-                  >
-                    {isExpanded ? (
-                      <ChevronUp className="h-4 w-4 mr-1" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 mr-1" />
-                    )}
-                    {isExpanded ? "Hide History" : "Show History"}
-                  </Button>
+                <div
+                  className={`px-4 py-3 ${
+                    isRoyaltyDistributed ? "bg-purple-50" : "bg-white"
+                  } border-t flex justify-between items-center`}
+                >
+                  <div className="flex flex-col space-y-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleExpand(ticket.publicKey.toBase58())}
+                      className="text-gray-500 hover:text-gray-700"
+                    >
+                      {isExpanded ? (
+                        <ChevronUp className="h-4 w-4 mr-1" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 mr-1" />
+                      )}
+                      {isExpanded ? "Hide History" : "Show History"}
+                    </Button>
+                  </div>
 
                   <div className="flex space-x-2">
-                    {/* Only show resell button for tickets owned by the current user */}
-                    <>
-                      <ResellButton
-                        ticket={ticket}
-                        onSuccess={handleResellSuccess}
-                      />
+                    {/* Only show resell button and distribute button for tickets owned by the current user and when royalty is not distributed yet */}
+                    {!ticket.account.royaltyDistributed && (
+                      <>
+                        <ResellButton
+                          ticket={ticket}
+                          onSuccess={handleResellSuccess}
+                        />
 
-                      <DistributeButton ticket={ticket} />
-                    </>
+                        <DistributeButton ticket={ticket} />
+                      </>
+                    )}
                   </div>
                 </div>
 
