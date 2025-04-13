@@ -420,7 +420,10 @@ export default function EventPage() {
             <h2 className="text-xl font-semibold mb-2">About This Event</h2>
             <p className="text-gray-700">{event.description || "No description available for this event."}</p>
           </div>
-          <ChainTickets eventPublicKey={chainEventKey ?? undefined} />
+          <ChainTickets
+            eventPublicKey={chainEventKey ?? undefined}
+            showOwners
+          />
         </div>
 
         <div>

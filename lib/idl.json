@@ -37,10 +37,13 @@
       "accounts": [
         { "name": "eventAccount", "isMut": true, "isSigner": false },
         { "name": "ticketAccount", "isMut": true, "isSigner": false },
-        { "name": "buyer", "isMut": true, "isSigner": true },
+        { "name": "payer", "isMut": true, "isSigner": true },
         { "name": "systemProgram", "isMut": false, "isSigner": false }
       ],
-      "args": [{ "name": "ticketId", "type": "string" }]
+      "args": [
+        { "name": "ticketId", "type": "string" },
+        { "name": "owner", "type": "string" }
+      ]
     },
     {
       "name": "deactivateEvent",
@@ -50,6 +53,20 @@
         { "name": "systemProgram", "isMut": false, "isSigner": false }
       ],
       "args": []
+    },
+    {
+      "name": "resellTicket",
+      "accounts": [
+        { "name": "ticketAccount", "isMut": true, "isSigner": false },
+        { "name": "ticketHistory", "isMut": true, "isSigner": false },
+        { "name": "payer", "isMut": true, "isSigner": true },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "seller", "type": "string" },
+        { "name": "buyer", "type": "string" },
+        { "name": "newPrice", "type": "u64" }
+      ]
     }
   ],
   "accounts": [
@@ -77,10 +94,26 @@
       "type": {
         "kind": "struct",
         "fields": [
-          { "name": "owner", "type": "publicKey" },
           { "name": "event", "type": "publicKey" },
+          { "name": "owner", "type": "string" },
+          { "name": "seller", "type": "string" },
           { "name": "ticketId", "type": "string" },
-          { "name": "purchaseDate", "type": "i64" }
+          { "name": "purchaseDate", "type": "i64" },
+          { "name": "ticketPrice", "type": "u64" },
+          { "name": "resellCount", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "TicketSellHistory",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "ticket", "type": "publicKey" },
+          { "name": "seller", "type": "string" },
+          { "name": "buyer", "type": "string" },
+          { "name": "purchaseDate", "type": "i64" },
+          { "name": "ticketPrice", "type": "u64" }
         ]
       }
     }
