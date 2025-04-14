@@ -193,9 +193,8 @@ export default function EventPage() {
       quantity: 1, // Resale tickets are sold individually
       price: selectedResaleTicket.price,
       fees: selectedResaleTicket.serviceFee + selectedResaleTicket.royaltyFee,
-      offerName: `Resale Ticket - ${selectedResaleTicket.ticket?.section || ""} ${selectedResaleTicket.ticket?.row || ""}${
-        selectedResaleTicket.ticket?.seat ? ` Seat ${selectedResaleTicket.ticket.seat}` : ""
-      }`,
+      offerName: `Resale Ticket - ${selectedResaleTicket.ticket?.section || ""} ${selectedResaleTicket.ticket?.row || ""}${selectedResaleTicket.ticket?.seat ? ` Seat ${selectedResaleTicket.ticket.seat}` : ""
+        }`,
       isResale: true,
       resaleId: selectedResaleTicket.id,
       royaltyFee: selectedResaleTicket.royaltyFee,
@@ -437,9 +436,7 @@ export default function EventPage() {
                     <TabsTrigger value="tickets" className="flex-1">
                       Primary
                     </TabsTrigger>
-                    <TabsTrigger value="resale" className="flex-1">
-                      Resale
-                    </TabsTrigger>
+
                     <TabsTrigger value="seating" className="flex-1">
                       Seating
                     </TabsTrigger>
@@ -450,11 +447,10 @@ export default function EventPage() {
                       {availability.event.tickets.map((ticket: any, index: number) => (
                         <div
                           key={index}
-                          className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                            selectedTicket === ticket
-                              ? "border-primary bg-primary/5"
-                              : "border-gray-200 hover:border-gray-300"
-                          }`}
+                          className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedTicket === ticket
+                            ? "border-primary bg-primary/5"
+                            : "border-gray-200 hover:border-gray-300"
+                            }`}
                           onClick={() => {
                             setSelectedTicket(ticket)
                             setSelectedSection("")
@@ -513,17 +509,17 @@ export default function EventPage() {
                                   <SelectContent>
                                     {ticket.offers[0].sellableQuantities
                                       ? ticket.offers[0].sellableQuantities
-                                          .slice(0, Math.min(10, ticket.offers[0].sellableQuantities.length))
-                                          .map((qty: number) => (
-                                            <SelectItem key={qty} value={qty.toString()}>
-                                              {qty}
-                                            </SelectItem>
-                                          ))
-                                      : Array.from({ length: 10 }, (_, i) => i + 1).map((qty) => (
+                                        .slice(0, Math.min(10, ticket.offers[0].sellableQuantities.length))
+                                        .map((qty: number) => (
                                           <SelectItem key={qty} value={qty.toString()}>
                                             {qty}
                                           </SelectItem>
-                                        ))}
+                                        ))
+                                      : Array.from({ length: 10 }, (_, i) => i + 1).map((qty) => (
+                                        <SelectItem key={qty} value={qty.toString()}>
+                                          {qty}
+                                        </SelectItem>
+                                      ))}
                                   </SelectContent>
                                 </Select>
                               </div>
@@ -546,11 +542,10 @@ export default function EventPage() {
                         {resaleTickets.map((ticket) => (
                           <div
                             key={ticket.id}
-                            className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                              selectedResaleTicket?.id === ticket.id
-                                ? "border-primary bg-primary/5"
-                                : "border-gray-200 hover:border-gray-300"
-                            }`}
+                            className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedResaleTicket?.id === ticket.id
+                              ? "border-primary bg-primary/5"
+                              : "border-gray-200 hover:border-gray-300"
+                              }`}
                             onClick={() => {
                               setSelectedResaleTicket(ticket)
                               setSelectedTicket(null)
@@ -726,7 +721,7 @@ export default function EventPage() {
                             (total: number, charge: any) => total + (charge.amount || 0),
                             0,
                           ) || 0)) *
-                          quantity,
+                        quantity,
                       )}
                     </span>
                   </div>
