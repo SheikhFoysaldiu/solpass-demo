@@ -76,7 +76,7 @@
     {
       "name": "distributeRoyalty",
       "accounts": [
-        { "name": "ticketAccount", "isMut": false, "isSigner": false },
+        { "name": "ticketAccount", "isMut": true, "isSigner": false },
         { "name": "eventAccount", "isMut": true, "isSigner": false },
         { "name": "payer", "isMut": true, "isSigner": true },
         { "name": "teamWallet", "isMut": true, "isSigner": false },
@@ -117,7 +117,8 @@
           { "name": "purchaseDate", "type": "i64" },
           { "name": "ticketPrice", "type": "u64" },
           { "name": "resellCount", "type": "u8" },
-          { "name": "accumulatedRoyalty", "type": "u64" }
+          { "name": "accumulatedRoyalty", "type": "u64" },
+          { "name": "royaltyDistributed", "type": "bool" }
         ]
       }
     },
