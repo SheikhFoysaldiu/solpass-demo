@@ -7,6 +7,7 @@ import { PublicKey, SystemProgram } from "@solana/web3.js";
 import { ChainTicket } from "./chain-tickets";
 import { Loader2 } from "lucide-react";
 import { BN } from "@coral-xyz/anchor";
+import { usdToLamports } from "@/lib/utils";
 
 interface ResellButtonProps {
   ticket: ChainTicket;
@@ -69,20 +70,18 @@ export default function ResellButton({ ticket, onSuccess }: ResellButtonProps) {
       );
 
       // Generate new price (increase by 10%)
-      const currentPrice = 10; // Ideally get this from the ticket if available
-      const newPrice = new BN(currentPrice > 0 ? currentPrice * 1.1 : 250000); // Default or increase by 10%
+      const currentPrice = ticket.account.ticketPrice; // Ideally get this from the ticket if available
+      const newPrice = 100;
+      const newPriceInLamport = new BN(usdToLamports(newPrice));
+      const eventAccount = new PublicKey(ticket.account.event.toBase58());
 
       // Call resellTicket instruction
       const tx = await program.methods
-        .resellTicket(
-          //   wallet.publicKey.toBase58(), // seller
-          sellar,
-          buyer,
-          newPrice
-        )
+        .resellTicket(sellar, buyer, newPriceInLamport)
         .accounts({
           ticketAccount: ticket.publicKey,
           ticketHistory: ticketHistoryPda,
+          eventAccount: eventAccount,
           payer: wallet.publicKey,
           systemProgram: SystemProgram.programId,
         })

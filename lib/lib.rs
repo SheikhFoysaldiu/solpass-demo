@@ -77,7 +77,7 @@ pub struct TicketSellHistory {
     pub ticket_price: u64,  // Sale price in lamports
 }
 
-declare_id!("BG4wuworHjpRsxE5Wm17Xnp7feyYKizzN2iZ5gZjbsQC");
+declare_id!("BVt1LbTYSFaZ7jZghdffdism86BdqcKPrcZ1caajiPAP");
 
 #[program]
 pub mod ticket_master {
@@ -116,6 +116,7 @@ pub mod ticket_master {
         ctx: Context<PurchaseTicket>,
         ticket_id: String,
         owner: String,
+        price: u64,
     ) -> Result<()> {
         // Get event pubkey first, before any mutable borrows
         let event_pubkey = ctx.accounts.event_account.key();
@@ -145,7 +146,7 @@ pub mod ticket_master {
         ticket_account.event = event_pubkey; // Use the previously stored key
         ticket_account.ticket_id = ticket_id;
         ticket_account.purchase_date = clock.unix_timestamp;
-        ticket_account.ticket_price = event_account.ticket_price;
+        ticket_account.ticket_price = price;
         ticket_account.resell_count = 0;
         ticket_account.accumulated_royalty = 0;
         ticket_account.royalty_distributed = false;
@@ -183,18 +184,40 @@ pub mod ticket_master {
         let ticket_key = ctx.accounts.ticket_account.key();
         let history = &mut ctx.accounts.ticket_history;
         let ticket = &mut ctx.accounts.ticket_account;
+        let event = &ctx.accounts.event_account;
         let clock = Clock::get()?;
 
         // Save current ticket data to history
         history.seller = ticket.seller.clone();
         history.buyer = ticket.owner.clone();
         history.ticket = ticket_key;
-        history.purchase_date = ticket.purchase_date; // Save original purchase date
-        history.ticket_price = ticket.ticket_price; // Save original price
+        history.purchase_date = ticket.purchase_date;
+        history.ticket_price = ticket.ticket_price;
 
-        // Calculate royalty amount (20% of new price)
+        // Parse royalty string (format: "ticketmaster,team,solpass")
+        let royalty_parts: Vec<&str> = event.royalty.split(',').collect();
+
+        // Calculate total royalty percentage, defaulting to 20% if parsing fails
+        let mut total_royalty_percent = 20u64; // Default fallback
+
+        if royalty_parts.len() >= 3 {
+            // Try to parse each royalty value and add them up
+            let ticketmaster_royalty = royalty_parts[0].parse::<u64>().unwrap_or(10);
+            let team_royalty = royalty_parts[1].parse::<u64>().unwrap_or(5);
+            let solpass_royalty = royalty_parts[2].parse::<u64>().unwrap_or(5);
+
+            total_royalty_percent = ticketmaster_royalty
+                .checked_add(team_royalty)
+                .ok_or(TicketError::MathOverflow)?
+                .checked_add(solpass_royalty)
+                .ok_or(TicketError::MathOverflow)?;
+        }
+
+        msg!("Using royalty percentage: {}", total_royalty_percent);
+
+        // Calculate royalty amount based on the parsed percentage
         let current_royalty = new_price
-            .checked_mul(20)
+            .checked_mul(total_royalty_percent)
             .ok_or(TicketError::MathOverflow)?
             .checked_div(100)
             .ok_or(TicketError::MathOverflow)?;
@@ -206,13 +229,13 @@ pub mod ticket_master {
             .ok_or(TicketError::MathOverflow)?;
 
         // Update ticket with new information
-        ticket.owner = buyer; // New owner (payer)
-        ticket.seller = seller; // here this can be taken from the current ticket
-        ticket.purchase_date = clock.unix_timestamp; // New purchase timestamp
-        ticket.ticket_price = new_price; // New price
+        ticket.owner = buyer;
+        ticket.seller = seller;
+        ticket.purchase_date = clock.unix_timestamp;
+        ticket.ticket_price = new_price;
         ticket.accumulated_royalty = new_accumulated_royalty;
 
-        // Increment tickets sold for the event
+        // Increment resell count
         ticket.resell_count = ticket
             .resell_count
             .checked_add(1)
@@ -221,37 +244,121 @@ pub mod ticket_master {
         Ok(())
     }
 
-    pub fn distribute_royalty(ctx: Context<DistributeRoyalty>, ticket_id: String) -> Result<()> {
+    pub fn distribute_royalty(
+        ctx: Context<DistributeRoyalty>,
+        ticket_id: String,
+        ticketmaster_wallet: Pubkey,
+        solpass_wallet: Pubkey,
+    ) -> Result<()> {
         let ticket = &mut ctx.accounts.ticket_account;
         let event = &ctx.accounts.event_account;
         let payer = &ctx.accounts.payer;
         let team_wallet = &ctx.accounts.team_wallet;
 
-        // Calculate the royalty amount (20% of current ticket price)
-        let royalty_amount = ticket.accumulated_royalty;
+        // Get the total accumulated royalty
+        let total_royalty_amount = ticket.accumulated_royalty;
 
-        // Transfer royalty from payer to team wallet
-        let ix = anchor_lang::solana_program::system_instruction::transfer(
-            &payer.key(),
-            &team_wallet.key(),
-            royalty_amount,
-        );
+        // Parse royalty string (format: "ticketmaster,team,solpass")
+        let royalty_parts: Vec<&str> = event.royalty.split(',').collect();
 
-        anchor_lang::solana_program::program::invoke_signed(
-            &ix,
-            &[
-                payer.to_account_info(),
-                team_wallet.to_account_info(),
-                ctx.accounts.system_program.to_account_info(),
-            ],
-            &[],
-        )?;
+        // Default percentages if parsing fails
+        let mut ticketmaster_pct = 10u64;
+        let mut team_pct = 5u64;
+        let mut solpass_pct = 5u64;
 
-        // Optional: Record the royalty distribution in the event account or a new account
+        // Try to parse each royalty value
+        if royalty_parts.len() >= 3 {
+            ticketmaster_pct = royalty_parts[0].parse::<u64>().unwrap_or(10);
+            team_pct = royalty_parts[1].parse::<u64>().unwrap_or(5);
+            solpass_pct = royalty_parts[2].parse::<u64>().unwrap_or(5);
+        }
+
+        // Calculate individual royalty amounts
+        let ticketmaster_amount = total_royalty_amount
+            .checked_mul(ticketmaster_pct)
+            .ok_or(TicketError::MathOverflow)?
+            .checked_div(ticketmaster_pct + team_pct + solpass_pct)
+            .ok_or(TicketError::MathOverflow)?;
+
+        let team_amount = total_royalty_amount
+            .checked_mul(team_pct)
+            .ok_or(TicketError::MathOverflow)?
+            .checked_div(ticketmaster_pct + team_pct + solpass_pct)
+            .ok_or(TicketError::MathOverflow)?;
+
+        let solpass_amount = total_royalty_amount
+            .checked_sub(ticketmaster_amount)
+            .ok_or(TicketError::MathOverflow)?
+            .checked_sub(team_amount)
+            .ok_or(TicketError::MathOverflow)?;
+
+        // Transfer royalty to ticketmaster
+        if ticketmaster_amount > 0 {
+            let ix = anchor_lang::solana_program::system_instruction::transfer(
+                &payer.key(),
+                &ticketmaster_wallet,
+                ticketmaster_amount,
+            );
+
+            anchor_lang::solana_program::program::invoke_signed(
+                &ix,
+                &[
+                    payer.to_account_info(),
+                    ctx.accounts.system_program.to_account_info(),
+                ],
+                &[],
+            )?;
+
+            msg!(
+                "Distributed {} lamports to Ticketmaster",
+                ticketmaster_amount
+            );
+        }
+
+        // Transfer royalty to team wallet
+        if team_amount > 0 {
+            let ix = anchor_lang::solana_program::system_instruction::transfer(
+                &payer.key(),
+                &team_wallet.key(),
+                team_amount,
+            );
+
+            anchor_lang::solana_program::program::invoke_signed(
+                &ix,
+                &[
+                    payer.to_account_info(),
+                    team_wallet.to_account_info(),
+                    ctx.accounts.system_program.to_account_info(),
+                ],
+                &[],
+            )?;
+
+            msg!("Distributed {} lamports to Team", team_amount);
+        }
+
+        // Transfer royalty to solpass
+        if solpass_amount > 0 {
+            let ix = anchor_lang::solana_program::system_instruction::transfer(
+                &payer.key(),
+                &solpass_wallet,
+                solpass_amount,
+            );
+
+            anchor_lang::solana_program::program::invoke_signed(
+                &ix,
+                &[
+                    payer.to_account_info(),
+                    ctx.accounts.system_program.to_account_info(),
+                ],
+                &[],
+            )?;
+
+            msg!("Distributed {} lamports to Solpass", solpass_amount);
+        }
 
         msg!(
-            "Distributed royalty of {} lamports for ticket {}",
-            royalty_amount,
+            "Total distribution of {} lamports for ticket {} complete",
+            total_royalty_amount,
             ticket_id
         );
 
@@ -305,6 +412,8 @@ pub struct PurchaseTicket<'info> {
 pub struct ResellTicket<'info> {
     #[account(mut,)]
     pub ticket_account: Box<Account<'info, TicketAccount>>,
+
+    pub event_account: Box<Account<'info, EventAccount>>,
 
     #[account(
         init,

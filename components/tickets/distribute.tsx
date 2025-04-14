@@ -6,6 +6,11 @@ import { AnchorWallet, useAnchorWallet } from "@solana/wallet-adapter-react";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import { ChainTicket } from "./chain-tickets";
 import { Loader2 } from "lucide-react";
+import {
+  solPassWalletAddress,
+  teamWalletAddress,
+  ticketMasterWalletAddress,
+} from "@/lib/contants";
 
 interface DistributeButtonProps {
   ticket: ChainTicket;
@@ -54,8 +59,9 @@ export default function DistributeButton({
     setIsDistributing(true);
 
     try {
-      const teamWalletAddress = "E5wWhJwVdJwoGPCKLJNAowS22xhJV2RRd3YH8SpS4gdt"; // The team wallet address from the ticket account
       // Parse team wallet address
+      const ticketMasterWallet = new PublicKey(ticketMasterWalletAddress);
+      const solPassWallet = new PublicKey(solPassWalletAddress);
       const teamWallet = new PublicKey(teamWalletAddress);
 
       // Get the event account from the ticket
@@ -63,12 +69,19 @@ export default function DistributeButton({
 
       // Call distribute_royalty instruction
       const tx = await program.methods
-        .distributeRoyalty(ticket.account.ticketId)
+        .distributeRoyalty(
+          ticket.account.ticketId
+          // Remove these parameters, they'll be used as accounts
+          // ticketMasterWallet,
+          // solPassWallet
+        )
         .accounts({
           ticketAccount: ticket.publicKey,
           eventAccount: eventAccount,
           payer: wallet.publicKey,
           teamWallet: teamWallet,
+          ticketmasterWallet: ticketMasterWallet, // Add this
+          solpassWallet: solPassWallet, // Add this
           systemProgram: SystemProgram.programId,
         })
         .rpc();

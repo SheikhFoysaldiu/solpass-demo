@@ -17,7 +17,7 @@ export type ChainTicket = {
     event: PublicKey;
     ticketId: string;
     purchaseDate: number;
-    ticketPrice?: number;
+    ticketPrice: number;
     resellCount: number;
     accumulatedRoyalty: string;
     royaltyDistributed: boolean;
@@ -185,7 +185,7 @@ function TicketHistoryDisplay({
               </span>
               <span className="font-medium">
                 {record.account.ticketPrice
-                  ? `${(record.account.ticketPrice / 1000000).toFixed(2)} SOL`
+                  ? `${record.account.ticketPrice} Lamport`
                   : "Price not available"}
               </span>
             </div>
@@ -332,8 +332,7 @@ export default function ChainTickets({
                     <p>Resell count: {ticket.account.resellCount}</p>
                     <p>
                       Total royalty:{" "}
-                      {parseFloat(ticket.account.accumulatedRoyalty) / 1000000}{" "}
-                      SOL
+                      {parseFloat(ticket.account.accumulatedRoyalty)} Lamport
                       {isRoyaltyDistributed && (
                         <span className="text-purple-600 font-medium ml-2">
                           (Distributed)
