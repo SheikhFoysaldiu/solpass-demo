@@ -218,12 +218,18 @@ interface ChainTicketsProps {
   eventPublicKey?: string;
   showOwners?: boolean;
   title?: string;
+  royalties?: {
+    ticketmaster: number;
+    team: number;
+    solpass: number;
+  };
 }
 
 export default function ChainTickets({
   eventPublicKey,
   showOwners = false,
   title,
+  royalties,
 }: ChainTicketsProps) {
   // Use the appropriate hook based on whether we're showing event tickets or user tickets
   const {
@@ -381,9 +387,14 @@ export default function ChainTickets({
                         <ResellButton
                           ticket={ticket}
                           onSuccess={handleResellSuccess}
+                          royalties={royalties}
                         />
 
-                        <DistributeButton ticket={ticket} />
+                        <DistributeButton
+                          ticket={ticket}
+                          royalties={royalties}
+                          onSuccess={handleResellSuccess}
+                        />
                       </>
                     )}
                   </div>
