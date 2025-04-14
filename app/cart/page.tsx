@@ -65,17 +65,16 @@ export default function CartPage() {
     setIsProcessing(true);
 
     try {
+      let wallet: AnchorWallet | null = null;
+
+      if (w) {
+        wallet = w;
+      } else if (privateWallet) {
+        wallet = privateWallet.wallet;
+      }
       // Process blockchain transactions first if wallet is connected
-      if ((w || privateWallet?.wallet) && program && cart.length > 0) {
+      if (program && cart.length > 0) {
         try {
-          let wallet: AnchorWallet | null = null;
-
-          if (w) {
-            wallet = w;
-          } else if (privateWallet) {
-            wallet = privateWallet.wallet;
-          }
-
           if (wallet) {
             // Process each ticket purchase on the blockchain
             for (const item of cart) {
@@ -95,15 +94,13 @@ export default function CartPage() {
                   program.programId
                 );
 
-                console.log("ticketPda", ticketPda.toBase58());
-
                 // Call purchaseTicket instruction
                 const tx = await program.methods
-                  .purchaseTicket(ticketId)
+                  .purchaseTicket(ticketId, wallet.publicKey.toBase58())
                   .accounts({
                     eventAccount: eventAccount,
                     ticketAccount: ticketPda,
-                    buyer: wallet.publicKey,
+                    payer: wallet.publicKey,
                     systemProgram: SystemProgram.programId,
                   })
                   .rpc();

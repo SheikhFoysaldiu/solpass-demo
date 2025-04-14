@@ -80,20 +80,19 @@ export function CartSheet({
     setIsProcessing(true);
 
     try {
-      // Process blockchain transactions first if wallet is connected
-      if ((w || privateWallet?.wallet) && program && cart.length > 0) {
-        try {
-          let wallet: AnchorWallet | null = null;
+      let wallet: AnchorWallet | null = null;
 
-          if (w) {
-            wallet = w;
-          } else if (privateWallet) {
-            wallet = privateWallet.wallet;
-          }
-          if (wallet)
+      if (w) {
+        wallet = w;
+      } else if (privateWallet) {
+        wallet = privateWallet.wallet;
+      }
+      // Process blockchain transactions first if wallet is connected
+      if (program && cart.length > 0) {
+        try {
+          if (wallet) {
             // Process each ticket purchase on the blockchain
             for (const item of cart) {
-              console.log(item, "item");
               if (item.eventId && item.chainEventKey) {
                 const ticketId = uuidv4().slice(0, 8); // Generate unique ticket ID
 
@@ -112,11 +111,11 @@ export function CartSheet({
 
                 // Call purchaseTicket instruction
                 const tx = await program.methods
-                  .purchaseTicket(ticketId)
+                  .purchaseTicket(ticketId, wallet.publicKey.toBase58())
                   .accounts({
                     eventAccount: eventAccount,
                     ticketAccount: ticketPda,
-                    buyer: wallet.publicKey,
+                    payer: wallet.publicKey,
                     systemProgram: SystemProgram.programId,
                   })
                   .rpc();
@@ -125,11 +124,12 @@ export function CartSheet({
               }
             }
 
-          toast({
-            title: "Blockchain tickets purchased",
-            description:
-              "Your tickets have been successfully purchased on the blockchain.",
-          });
+            toast({
+              title: "Blockchain tickets purchased",
+              description:
+                "Your tickets have been successfully purchased on the blockchain.",
+            });
+          }
         } catch (error) {
           console.error("Error processing blockchain transactions:", error);
           toast({
@@ -179,14 +179,6 @@ export function CartSheet({
 
       // Clear the cart
       clearCart();
-
-      // Close the sheet
-      setSheetOpen(false);
-
-      // Call the onCheckoutComplete callback if provided
-      if (onCheckoutComplete) {
-        onCheckoutComplete();
-      }
 
       // Show success message
       toast({
