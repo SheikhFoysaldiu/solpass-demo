@@ -1,135 +1,236 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { EventCard } from "@/components/event-card"
-import { CreateEventForm } from "@/components/create-event-form"
-import { Button } from "@/components/ui/button"
-import { PlusCircle, ShoppingCart, Loader2, Ticket } from "lucide-react"
-import { fetchEvents } from "@/lib/api-client"
-import { CartSheet } from "@/components/cart-sheet"
-import { useCart } from "@/hooks/use-cart"
-import { useToast } from "@/hooks/use-toast"
-import { generateDummyEvent } from "@/lib/mock-data"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2, Key, Plus } from "lucide-react";
+import { toast } from "sonner";
+import { useTeamStore } from "@/store/useTeamStore";
+import { createTeam, getTeamByPrivateKey } from "@/lib/api-client";
+import { useWalletStore } from "@/store/useWalletStore";
 
-export default function Home() {
-  const [events, setEvents] = useState<Event[]>([])
-  const [showCreateForm, setShowCreateForm] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const { cart } = useCart()
-  const { toast } = useToast()
-  const [cartSheetOpen, setCartSheetOpen] = useState(false)
-  const totalItems = cart.reduce((total, item) => total + item.quantity, 0)
-  const router = useRouter()
-
+export default function LoginPage() {
+  const router = useRouter();
+  const { team, setTeam } = useTeamStore();
+  const [teamPrivateKey, setTeamPrivateKey] = useState("");
+  const [teamName, setTeamName] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState("");
+  const { setPrivateKey: setWalletPrivateKey, privateKey: Pvkey } =
+    useWalletStore();
+  // If team is already logged in, redirect to wallet page
   useEffect(() => {
-    // Load events from our API
-    const fetchEventsData = async () => {
-      try {
-        setLoading(true)
-        const eventsData = await fetchEvents()
+    if (team) {
+      router.push("/wallet");
+    }
+  }, [team, router]);
 
-        // Make sure eventsData is an array and filter out any invalid events
-        const validEvents = Array.isArray(eventsData)
-          ? eventsData.filter((event) => event && typeof event === "object" && "id" in event)
-          : []
-
-        if (validEvents.length > 0) {
-          setEvents(validEvents)
-        } else {
-          // If no events, create a dummy event
-          const dummyEvent = generateDummyEvent()
-          setEvents([dummyEvent])
-        }
-      } catch (error) {
-        console.error("Error fetching events:", error)
-        // If API fails, create a dummy event
-        const dummyEvent = generateDummyEvent()
-        setEvents([dummyEvent])
-      } finally {
-        setLoading(false)
-      }
+  const handleLogin = async () => {
+    if (!teamPrivateKey) {
+      setError("Please enter your team private key");
+      return;
     }
 
-    fetchEventsData()
-  }, [])
+    setIsLoggingIn(true);
+    setError("");
 
-  const handleCreateEvent = (newEvent: Event) => {
-    // Add the new event to the events array
-    setEvents((prevEvents) => [...prevEvents, newEvent])
-    setShowCreateForm(false)
+    try {
+      // Fetch team from the database
+      const teamData = await getTeamByPrivateKey(teamPrivateKey);
 
-    // Show success toast
-    toast({
-      title: "Event created",
-      description: `${newEvent.name} has been created successfully.`,
-    })
+      // Store the team in state
+      setTeam({
+        id: teamData.id,
+        publicKey: teamData.publicKey,
+        name: teamData.name,
+      });
+      setWalletPrivateKey(teamData.secretKey); // Store private key temporarily
+      toast.success("Login successful", {
+        description: "Welcome back to SolPass!",
+      });
 
-    // Navigate to the new event page
-    router.push(`/events/${newEvent.id}`)
-  }
+      // Redirect to wallet page
+      router.push("/wallet");
+    } catch (err) {
+      console.error("Login error:", err);
+      setError(
+        "Team not found or invalid private key. Please check and try again."
+      );
+      toast.error("Login failed");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleCreateTeam = async () => {
+    if (!teamName) {
+      setError("Please enter a team name");
+      return;
+    }
+
+    setIsCreating(true);
+    setError("");
+
+    try {
+      // Create team in the database
+      const newTeam = await createTeam(teamName);
+      setWalletPrivateKey(newTeam.privateKey); // Store private key temporarily
+      // Store the team in state
+      setTeam({
+        id: newTeam.id,
+        publicKey: newTeam.publicKey,
+        name: newTeam.name,
+        privateKey: newTeam.privateKey, // Store private key temporarily
+      });
+
+      toast.success("Team created successfully", {
+        description: "Your team has been registered with SolPass!",
+      });
+
+      // Redirect to wallet page
+      router.push("/wallet");
+    } catch (err) {
+      console.error("Failed to create team:", err);
+      setError("Failed to create team");
+      toast.error("Team creation failed");
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   return (
-    <main className="container mx-auto py-8 px-4">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Event Ticketing</h1>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <CartSheet open={cartSheetOpen} onOpenChange={setCartSheetOpen}>
-              <Button variant="outline" size="icon" className="relative" onClick={() => setCartSheetOpen(true)}>
-                <ShoppingCart className="h-5 w-5" />
-                {totalItems > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    {totalItems}
-                  </span>
+    <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+      <div className="max-w-md w-full space-y-6">
+        {/* Logo and Title */}
+        <div className="text-center space-y-2">
+          <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-500 to-blue-600">
+            SolPass
+          </h1>
+          <p className="text-slate-600 dark:text-slate-400">
+            Team Portal - Blockchain Ticketing Platform
+          </p>
+        </div>
+
+        <Tabs defaultValue="login" className="w-full">
+          <TabsList className="grid grid-cols-2 mb-4">
+            <TabsTrigger value="login">Login</TabsTrigger>
+            <TabsTrigger value="signup">Create Team</TabsTrigger>
+          </TabsList>
+
+          {/* Login Tab */}
+          <TabsContent value="login">
+            <Card>
+              <CardHeader>
+                <CardTitle>Team Login</CardTitle>
+                <CardDescription>
+                  Enter your team private key to access the platform
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="teamPrivateKey">Team Private Key</Label>
+                  <Input
+                    id="teamPrivateKey"
+                    placeholder="Enter your team private key"
+                    value={teamPrivateKey}
+                    onChange={(e) => setTeamPrivateKey(e.target.value)}
+                  />
+                </div>
+
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
                 )}
-              </Button>
-            </CartSheet>
+              </CardContent>
+              <CardFooter>
+                <Button
+                  className="w-full"
+                  onClick={handleLogin}
+                  disabled={isLoggingIn}
+                >
+                  {isLoggingIn ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Logging in...
+                    </>
+                  ) : (
+                    <>
+                      <Key className="mr-2 h-4 w-4" />
+                      Login
+                    </>
+                  )}
+                </Button>
+              </CardFooter>
+            </Card>
+          </TabsContent>
 
-            <Button variant="outline" asChild>
-              <Link href="/cart">
-                <ShoppingCart className="h-4 w-4 mr-2" />
-                Cart ({totalItems})
-              </Link>
-            </Button>
+          {/* Signup Tab */}
+          <TabsContent value="signup">
+            <Card>
+              <CardHeader>
+                <CardTitle>Create New Team</CardTitle>
+                <CardDescription>
+                  Register your team on the SolPass platform
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="teamName">Team Name</Label>
+                  <Input
+                    id="teamName"
+                    placeholder="Enter your team name"
+                    value={teamName}
+                    onChange={(e) => setTeamName(e.target.value)}
+                  />
+                </div>
 
-            <Button variant="outline" asChild>
-              <Link href="/my-tickets">
-                <Ticket className="h-4 w-4 mr-2" />
-                My Tickets
-              </Link>
-            </Button>
-          </div>
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+              <CardFooter>
+                <Button
+                  className="w-full"
+                  onClick={handleCreateTeam}
+                  disabled={isCreating}
+                >
+                  {isCreating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating team...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Create Team
+                    </>
+                  )}
+                </Button>
+              </CardFooter>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
-          <Button onClick={() => setShowCreateForm(!showCreateForm)} className="flex items-center gap-2">
-            <PlusCircle size={18} />
-            {showCreateForm ? "Cancel" : "Create Event"}
-          </Button>
-        </div>
+        <p className="text-center text-sm text-slate-500">
+          SolPass • Blockchain Ticketing Platform
+        </p>
       </div>
-
-      {showCreateForm && (
-        <div className="mb-8">
-          <CreateEventForm onSubmit={handleCreateEvent} />
-        </div>
-      )}
-
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-12 space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p>Loading events...</p>
-        </div>
-      ) : events.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-lg text-gray-500 mb-4">No events found</p>
-          <Button onClick={() => setShowCreateForm(true)}>Create Your First Event</Button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {events.map((event) => (event && event.id ? <EventCard key={event.id} event={event} /> : null))}
-        </div>
-      )}
     </main>
-  )
+  );
 }

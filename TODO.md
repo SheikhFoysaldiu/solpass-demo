@@ -1,0 +1,3 @@
+- [] initialize the event in blockchain. (from team perspective)
+- [] reresell
+- [ ] distribute one ticket royalty.

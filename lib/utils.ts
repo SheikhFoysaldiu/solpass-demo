@@ -1,36 +1,29 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import type { RoyaltyFormValues } from "@/types"
 
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
-}
-
-// Add the formatCurrency function if it doesn't exist
-export function formatCurrency(amount: number): string {
+export const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
   }).format(amount)
 }
 
-// Add the missing formatDate function
-export function formatDate(dateString: string): string {
-  if (!dateString) return "TBD"
+export const formatDate = (dateString: string) => {
+  const date = new Date(dateString)
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
 
-  try {
-    const date = new Date(dateString)
+export const createRoyaltiesString = (royalties: RoyaltyFormValues): string => {
+  return `${royalties.ticketmaster},${royalties.team},${royalties.solpass}`
+}
 
-    // Check if date is valid
-    if (isNaN(date.getTime())) return "Invalid Date"
-
-    return date.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    })
-  } catch (error) {
-    console.error("Error formatting date:", error)
-    return "Invalid Date"
-  }
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
 }
