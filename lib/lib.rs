@@ -247,13 +247,16 @@ pub mod ticket_master {
     pub fn distribute_royalty(
         ctx: Context<DistributeRoyalty>,
         ticket_id: String,
-        ticketmaster_wallet: Pubkey,
-        solpass_wallet: Pubkey,
+        // Remove these parameters as they're now part of the accounts struct
+        // ticketmaster_wallet: Pubkey,
+        // solpass_wallet: Pubkey,
     ) -> Result<()> {
         let ticket = &mut ctx.accounts.ticket_account;
         let event = &ctx.accounts.event_account;
         let payer = &ctx.accounts.payer;
         let team_wallet = &ctx.accounts.team_wallet;
+        let ticketmaster_wallet = &ctx.accounts.ticketmaster_wallet;
+        let solpass_wallet = &ctx.accounts.solpass_wallet;
 
         // Get the total accumulated royalty
         let total_royalty_amount = ticket.accumulated_royalty;
@@ -296,7 +299,7 @@ pub mod ticket_master {
         if ticketmaster_amount > 0 {
             let ix = anchor_lang::solana_program::system_instruction::transfer(
                 &payer.key(),
-                &ticketmaster_wallet,
+                &ticketmaster_wallet.key(),
                 ticketmaster_amount,
             );
 
@@ -304,6 +307,7 @@ pub mod ticket_master {
                 &ix,
                 &[
                     payer.to_account_info(),
+                    ticketmaster_wallet.to_account_info(),
                     ctx.accounts.system_program.to_account_info(),
                 ],
                 &[],
@@ -340,7 +344,7 @@ pub mod ticket_master {
         if solpass_amount > 0 {
             let ix = anchor_lang::solana_program::system_instruction::transfer(
                 &payer.key(),
-                &solpass_wallet,
+                &solpass_wallet.key(),
                 solpass_amount,
             );
 
@@ -348,6 +352,7 @@ pub mod ticket_master {
                 &ix,
                 &[
                     payer.to_account_info(),
+                    solpass_wallet.to_account_info(),
                     ctx.accounts.system_program.to_account_info(),
                 ],
                 &[],
@@ -366,6 +371,7 @@ pub mod ticket_master {
 
         Ok(())
     }
+
 }
 
 #[derive(Accounts)]
@@ -463,6 +469,14 @@ pub struct DistributeRoyalty<'info> {
     /// CHECK: This is the team's wallet that receives royalties
     #[account(mut)]
     pub team_wallet: AccountInfo<'info>,
+
+    /// CHECK: This is the ticketmaster wallet that receives royalties
+    #[account(mut)]
+    pub ticketmaster_wallet: AccountInfo<'info>,
+
+    /// CHECK: This is the solpass wallet that receives royalties
+    #[account(mut)]
+    pub solpass_wallet: AccountInfo<'info>,
 
     pub system_program: Program<'info, System>,
 }
