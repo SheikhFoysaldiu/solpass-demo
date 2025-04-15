@@ -47,7 +47,8 @@
       ],
       "args": [
         { "name": "ticketId", "type": "string" },
-        { "name": "owner", "type": "string" }
+        { "name": "owner", "type": "string" },
+        { "name": "price", "type": "u64" }
       ]
     },
     {
@@ -63,6 +64,7 @@
       "name": "resellTicket",
       "accounts": [
         { "name": "ticketAccount", "isMut": true, "isSigner": false },
+        { "name": "eventAccount", "isMut": false, "isSigner": false },
         { "name": "ticketHistory", "isMut": true, "isSigner": false },
         { "name": "payer", "isMut": true, "isSigner": true },
         { "name": "systemProgram", "isMut": false, "isSigner": false }
@@ -80,6 +82,8 @@
         { "name": "eventAccount", "isMut": true, "isSigner": false },
         { "name": "payer", "isMut": true, "isSigner": true },
         { "name": "teamWallet", "isMut": true, "isSigner": false },
+        { "name": "ticketmasterWallet", "isMut": true, "isSigner": false },
+        { "name": "solpassWallet", "isMut": true, "isSigner": false },
         { "name": "systemProgram", "isMut": false, "isSigner": false }
       ],
       "args": [{ "name": "ticketId", "type": "string" }]

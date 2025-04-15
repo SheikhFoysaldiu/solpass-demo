@@ -8,5 +8,12 @@ export const MOTHER = new Uint8Array([
 ]);
 
 export const programId = new PublicKey(
-  "Cjc2Wjo5iREDigKh3V46LNkZYTyVK46wjtbUci9BeUWg"
+  "BVt1LbTYSFaZ7jZghdffdism86BdqcKPrcZ1caajiPAP"
 );
+
+export const solPassWalletAddress =
+  "E5wWhJwVdJwoGPCKLJNAowS22xhJV2RRd3YH8SpS4gdt";
+export const ticketMasterWalletAddress =
+  "8SxkVcWnSqfFCzVbwYk52MH4ckGfNuK1hjYUDZGQ6M5f";
+
+export const teamWalletAddress = "55LHVQWuELDEcjJGze8Bh4bMzyRqjeLmf8gmSp6UerG5";

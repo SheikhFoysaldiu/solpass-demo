@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ShoppingCart, Trash2, CreditCard, Loader2 } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, usdToLamports } from "@/lib/utils";
 import {
   Sheet,
   SheetContent,
@@ -23,6 +23,7 @@ import { AnchorWallet, useAnchorWallet } from "@solana/wallet-adapter-react";
 import { v4 as uuidv4 } from "uuid";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import { useTeamStore } from "@/store/useTeamStore";
+import { BN } from "@coral-xyz/anchor";
 
 interface CartSheetProps {
   children?: React.ReactNode;
@@ -109,9 +110,16 @@ export function CartSheet({
                   program.programId
                 );
 
+                const lamportPrice = usdToLamports(item.price); // Convert price to lamports
+
                 // Call purchaseTicket instruction
                 const tx = await program.methods
-                  .purchaseTicket(ticketId, wallet.publicKey.toBase58())
+                  .purchaseTicket(
+                    ticketId,
+                    wallet.publicKey.toBase58(),
+                    new BN(lamportPrice)
+                    // Uint8Array.from([item.price])
+                  )
                   .accounts({
                     eventAccount: eventAccount,
                     ticketAccount: ticketPda,

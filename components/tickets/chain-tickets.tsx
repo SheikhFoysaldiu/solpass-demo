@@ -9,6 +9,7 @@ import { usePrivateKeyAnchorWallet, useProgram } from "@/lib/hooks/useProgram";
 import ResellButton from "./resell";
 import DistributeButton from "./distribute";
 import { Badge } from "../ui/badge";
+import { useViewModeStore } from "@/store/useViewModeStore";
 
 export type ChainTicket = {
   publicKey: PublicKey;
@@ -17,7 +18,7 @@ export type ChainTicket = {
     event: PublicKey;
     ticketId: string;
     purchaseDate: number;
-    ticketPrice?: number;
+    ticketPrice: number;
     resellCount: number;
     accumulatedRoyalty: string;
     royaltyDistributed: boolean;
@@ -185,7 +186,7 @@ function TicketHistoryDisplay({
               </span>
               <span className="font-medium">
                 {record.account.ticketPrice
-                  ? `${(record.account.ticketPrice / 1000000).toFixed(2)} SOL`
+                  ? `${record.account.ticketPrice} Lamport`
                   : "Price not available"}
               </span>
             </div>
@@ -218,31 +219,59 @@ interface ChainTicketsProps {
   eventPublicKey?: string;
   showOwners?: boolean;
   title?: string;
+  royalties?: {
+    ticketmaster: number;
+    team: number;
+    solpass: number;
+  };
 }
 
 export default function ChainTickets({
   eventPublicKey,
   showOwners = false,
   title,
+  royalties,
 }: ChainTicketsProps) {
+  // Get the current view mode
+  const { mode } = useViewModeStore();
+
   // Use the appropriate hook based on whether we're showing event tickets or user tickets
   const {
-    data: tickets = [],
+    data: allTickets = [],
     isLoading,
     refetch,
   } = eventPublicKey ? useEventTickets(eventPublicKey) : useMyTickets();
 
   const wallet = usePrivateKeyAnchorWallet();
+  const anchorWallet = useAnchorWallet();
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>(
     {}
   );
+
+  // Filter tickets based on mode
+  const tickets =
+    mode === "user" && eventPublicKey
+      ? allTickets.filter(
+          (ticket) =>
+            wallet?.wallet.publicKey.toString() ===
+              ticket.account.owner.toString() ||
+            anchorWallet?.publicKey.toString() ===
+              ticket.account.owner.toString()
+        )
+      : allTickets;
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp * 1000).toLocaleDateString();
   };
 
+  // Determine display title based on mode and props
   const displayTitle =
-    title || (eventPublicKey ? "Event Tickets" : "My Tickets");
+    title ||
+    (mode === "user"
+      ? "My Tickets"
+      : eventPublicKey
+      ? "Event Tickets"
+      : "My Tickets");
 
   const handleResellSuccess = () => {
     // Refetch the tickets to update the UI
@@ -271,7 +300,9 @@ export default function ChainTickets({
           {tickets.map((ticket) => {
             const isOwned =
               wallet?.wallet.publicKey.toString() ===
-              ticket.account.owner.toString();
+                ticket.account.owner.toString() ||
+              anchorWallet?.publicKey.toString() ===
+                ticket.account.owner.toString();
             const isExpanded =
               expandedCards[ticket.publicKey.toBase58()] || false;
             const isRoyaltyDistributed = ticket.account.royaltyDistributed;
@@ -332,8 +363,7 @@ export default function ChainTickets({
                     <p>Resell count: {ticket.account.resellCount}</p>
                     <p>
                       Total royalty:{" "}
-                      {parseFloat(ticket.account.accumulatedRoyalty) / 1000000}{" "}
-                      SOL
+                      {parseFloat(ticket.account.accumulatedRoyalty)} Lamport
                       {isRoyaltyDistributed && (
                         <span className="text-purple-600 font-medium ml-2">
                           (Distributed)
@@ -376,15 +406,26 @@ export default function ChainTickets({
                   </div>
 
                   <div className="flex space-x-2">
-                    {/* Only show resell button and distribute button for tickets owned by the current user and when royalty is not distributed yet */}
+                    {/* Only show resell button for user mode when royalty is not distributed yet */}
                     {!ticket.account.royaltyDistributed && (
                       <>
-                        <ResellButton
-                          ticket={ticket}
-                          onSuccess={handleResellSuccess}
-                        />
+                        {/* Only show resell button in user mode */}
+                        {mode === "user" && (
+                          <ResellButton
+                            ticket={ticket}
+                            onSuccess={handleResellSuccess}
+                            royalties={royalties}
+                          />
+                        )}
 
-                        <DistributeButton ticket={ticket} />
+                        {/* Only show distribute button in team mode */}
+                        {mode === "team" && (
+                          <DistributeButton
+                            ticket={ticket}
+                            royalties={royalties}
+                            onSuccess={handleResellSuccess}
+                          />
+                        )}
                       </>
                     )}
                   </div>
@@ -405,7 +446,11 @@ export default function ChainTickets({
       ) : (
         <div className="text-center py-8 border rounded-lg bg-slate-50">
           <p className="text-gray-500">
-            {isLoading ? "Loading tickets..." : "No onchain tickets found"}
+            {isLoading
+              ? "Loading tickets..."
+              : mode === "user" && eventPublicKey
+              ? "You don't have any tickets for this event"
+              : "No onchain tickets found"}
           </p>
         </div>
       )}

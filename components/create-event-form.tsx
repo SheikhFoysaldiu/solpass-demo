@@ -1,35 +1,41 @@
-"use client"
+"use client";
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
-import { Slider } from "@/components/ui/slider"
-import { Textarea } from "@/components/ui/textarea"
-import { useToast } from "@/hooks/use-toast"
-import { createEvent } from "@/lib/api-client"
-import { useTeamStore } from "@/store/useTeamStore"
-import type { Event, TicketType } from "@/types"
-import { Loader2, Percent, Plus, Trash2 } from "lucide-react"
-import type React from "react"
-import { useState } from "react"
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Slider } from "@/components/ui/slider";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { createEvent } from "@/lib/api-client";
+import { useTeamStore } from "@/store/useTeamStore";
+import type { Event, TicketType } from "@/types";
+import { Loader2, Percent, Plus, Trash2 } from "lucide-react";
+import type React from "react";
+import { useState } from "react";
 
 interface CreateEventFormProps {
-  onSubmit: (event: Event) => void
+  onSubmit: (event: Event) => void;
 }
 
 interface TicketTypeInput {
-  name: string
-  price: number
-  fees: number
-  available: number
+  name: string;
+  price: number;
+  fees: number;
+  available: number;
 }
 
 export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
-  const { toast } = useToast()
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const { team } = useTeamStore()
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { team } = useTeamStore();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -39,47 +45,56 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
     ticketLimit: 10,
     image: "/placeholder.svg?height=400&width=600",
     royaltyPercentage: 5, // Default royalty percentage
-  })
+  });
 
   const [ticketTypes, setTicketTypes] = useState<TicketTypeInput[]>([
     { name: "General Admission", price: 50, fees: 10, available: 100 },
-  ])
+  ]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
   const handleRoyaltyChange = (value: number[]) => {
-    setFormData((prev) => ({ ...prev, royaltyPercentage: value[0] }))
-  }
+    setFormData((prev) => ({ ...prev, royaltyPercentage: value[0] }));
+  };
 
-  const handleTicketTypeChange = (index: number, field: keyof TicketTypeInput, value: string | number) => {
-    const newTicketTypes = [...ticketTypes]
+  const handleTicketTypeChange = (
+    index: number,
+    field: keyof TicketTypeInput,
+    value: string | number
+  ) => {
+    const newTicketTypes = [...ticketTypes];
 
     // Convert to number if the field is price, fees, or available
     if (field === "price" || field === "fees" || field === "available") {
-      newTicketTypes[index][field] = Number(value)
+      newTicketTypes[index][field] = Number(value);
     } else {
-      newTicketTypes[index][field] = value as string
+      newTicketTypes[index][field] = value as string;
     }
 
-    setTicketTypes(newTicketTypes)
-  }
+    setTicketTypes(newTicketTypes);
+  };
 
   const addTicketType = () => {
-    setTicketTypes([...ticketTypes, { name: "", price: 0, fees: 0, available: 0 }])
-  }
+    setTicketTypes([
+      ...ticketTypes,
+      { name: "", price: 0, fees: 0, available: 0 },
+    ]);
+  };
 
   const removeTicketType = (index: number) => {
     if (ticketTypes.length > 1) {
-      setTicketTypes(ticketTypes.filter((_, i) => i !== index))
+      setTicketTypes(ticketTypes.filter((_, i) => i !== index));
     }
-  }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSubmitting(true)
+    e.preventDefault();
+    setIsSubmitting(true);
 
     try {
       // Validate form data
@@ -88,9 +103,9 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
           title: "Missing information",
           description: "Please fill in all required fields.",
           variant: "destructive",
-        })
-        setIsSubmitting(false)
-        return
+        });
+        setIsSubmitting(false);
+        return;
       }
 
       // Validate ticket types
@@ -98,11 +113,12 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
         if (!ticket.name || ticket.price <= 0 || ticket.available <= 0) {
           toast({
             title: "Invalid ticket information",
-            description: "Please ensure all ticket types have a name, price, and available quantity.",
+            description:
+              "Please ensure all ticket types have a name, price, and available quantity.",
             variant: "destructive",
-          })
-          setIsSubmitting(false)
-          return
+          });
+          setIsSubmitting(false);
+          return;
         }
       }
 
@@ -112,7 +128,11 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
         date: new Date(formData.date),
         venue: formData.venue,
         description: formData.description,
-        image: formData.image || `/placeholder.svg?height=400&width=600&text=${encodeURIComponent(formData.name)}`,
+        image:
+          formData.image ||
+          `/placeholder.svg?height=400&width=600&text=${encodeURIComponent(
+            formData.name
+          )}`,
         onsale: new Date(),
         offsale: new Date(new Date().setMonth(new Date().getMonth() + 3)),
         ticketLimit: Number(formData.ticketLimit),
@@ -125,21 +145,20 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
               price: type.price,
               fees: type.fees,
               available: type.available,
-
-            }) as TicketType,
+            } as TicketType)
         ),
-      }
+      };
 
-      console.log("Creating event:", newEvent)
+      console.log("Creating event:", newEvent);
 
       // Try to create the event via API
-      let createdEvent
+      let createdEvent;
       try {
-        onSubmit(newEvent as Event)
-        console.log("Event created successfully:", createdEvent)
+        onSubmit(newEvent as Event);
+        console.log("Event created successfully:", createdEvent);
       } catch (apiError) {
-        console.error("API error creating event:", apiError)
-        throw apiError
+        console.error("API error creating event:", apiError);
+        throw apiError;
       }
 
       // Reset form
@@ -151,24 +170,26 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
         ticketLimit: 10,
         image: "/placeholder.svg?height=400&width=600",
         royaltyPercentage: 5,
-      })
-      setTicketTypes([{ name: "General Admission", price: 50, fees: 10, available: 100 }])
+      });
+      setTicketTypes([
+        { name: "General Admission", price: 50, fees: 10, available: 100 },
+      ]);
 
       toast({
         title: "Success",
         description: `Event "${newEvent.name}" has been created successfully.`,
-      })
+      });
     } catch (error) {
-      console.error("Error creating event:", error)
+      console.error("Error creating event:", error);
       toast({
         title: "Error",
         description: "Failed to create event. Please try again.",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   return (
     <Card>
@@ -191,7 +212,14 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="date">Event Date & Time</Label>
-            <Input id="date" name="date" type="datetime-local" value={formData.date} onChange={handleChange} required />
+            <Input
+              id="date"
+              name="date"
+              type="datetime-local"
+              value={formData.date}
+              onChange={handleChange}
+              required
+            />
           </div>
 
           <div className="space-y-2">
@@ -228,7 +256,9 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
               onChange={handleChange}
               placeholder="Enter image URL"
             />
-            <p className="text-xs text-muted-foreground">Leave blank to use default image</p>
+            <p className="text-xs text-muted-foreground">
+              Leave blank to use default image
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -245,7 +275,7 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
             />
           </div>
 
-          <div className="space-y-4">
+          {/* <div className="space-y-4">
             <div className="flex items-center justify-between">
               <Label htmlFor="royaltyPercentage" className="flex items-center">
                 <Percent className="h-4 w-4 mr-2" />
@@ -265,14 +295,19 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
               This percentage will be charged as a royalty fee on all resale transactions and paid to the event
               organizer.
             </p>
-          </div>
+          </div> */}
 
-          <Separator />
+          {/* <Separator /> */}
 
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <Label>Ticket Types</Label>
-              <Button type="button" variant="outline" size="sm" onClick={addTicketType}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addTicketType}
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Ticket Type
               </Button>
@@ -300,7 +335,9 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
                   <Input
                     id={`ticket-name-${index}`}
                     value={ticket.name}
-                    onChange={(e) => handleTicketTypeChange(index, "name", e.target.value)}
+                    onChange={(e) =>
+                      handleTicketTypeChange(index, "name", e.target.value)
+                    }
                     placeholder="e.g. General Admission, VIP, etc."
                     required
                   />
@@ -315,7 +352,9 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
                       min="0"
                       step="0.01"
                       value={ticket.price}
-                      onChange={(e) => handleTicketTypeChange(index, "price", e.target.value)}
+                      onChange={(e) =>
+                        handleTicketTypeChange(index, "price", e.target.value)
+                      }
                       required
                     />
                   </div>
@@ -328,19 +367,29 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
                       min="0"
                       step="0.01"
                       value={ticket.fees}
-                      onChange={(e) => handleTicketTypeChange(index, "fees", e.target.value)}
+                      onChange={(e) =>
+                        handleTicketTypeChange(index, "fees", e.target.value)
+                      }
                       required
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor={`ticket-available-${index}`}>Available Tickets</Label>
+                    <Label htmlFor={`ticket-available-${index}`}>
+                      Available Tickets
+                    </Label>
                     <Input
                       id={`ticket-available-${index}`}
                       type="number"
                       min="1"
                       value={ticket.available}
-                      onChange={(e) => handleTicketTypeChange(index, "available", e.target.value)}
+                      onChange={(e) =>
+                        handleTicketTypeChange(
+                          index,
+                          "available",
+                          e.target.value
+                        )
+                      }
                       required
                     />
                   </div>
@@ -363,5 +412,5 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
         </CardFooter>
       </form>
     </Card>
-  )
+  );
 }

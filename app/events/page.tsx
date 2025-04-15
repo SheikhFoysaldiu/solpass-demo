@@ -258,12 +258,16 @@ export default function EventsPage() {
     const chainEvent = event.chainEventKey
       ? chainEventsByIdMap.get(event.id)
       : null;
+
+    console.log("Chain event:", chainEvent);
     return {
       ...event,
-      onChain: !!event.chainEventKey,
+      // onChain: !!event.chainEventKey,
       chainData: chainEvent,
     };
   });
+
+  console.log("eh", enhancedEvents);
 
   return (
     <main className="container mx-auto py-8 px-4">
@@ -338,7 +342,7 @@ export default function EventsPage() {
               <EventCard
                 key={event.id}
                 event={event}
-                isOnChain={event.onChain}
+                isOnChain={event.chainData ? true : false}
                 chainData={event.chainData}
                 onInitialize={(royalties) =>
                   handleInitializeEvent(event, royalties)
