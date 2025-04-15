@@ -41,7 +41,7 @@ export default function DistributeButton({
   const [royaltyBreakdown, setRoyaltyBreakdown] = useState({
     ticketmaster: royalties?.ticketmaster ?? 10,
     team: royalties?.team ?? 5,
-    solpass: royalties?.solpass ?? 5,
+    solpass: royalties?.solpass ?? 2.5,
   });
   const { toast } = useToast();
   const program = useProgram();

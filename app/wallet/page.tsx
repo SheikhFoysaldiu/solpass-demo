@@ -177,7 +177,7 @@ export default function WalletPage() {
           <TabsContent value="generate">
             <Card>
               <CardHeader>
-                <CardTitle>Create New Wallet</CardTitle>
+                <CardTitle>Your Wallet</CardTitle>
                 <CardDescription>
                   Generate a new wallet for testing on Solana Devnet
                 </CardDescription>
@@ -188,7 +188,7 @@ export default function WalletPage() {
                     <div className="flex justify-between text-sm mb-1">
                       <span className="text-slate-500">Public Key</span>
                     </div>
-                    <p className="text-xs break-all font-mono p-2 text-white bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700">
+                    <p className="text-xs break-all font-mono p-2 text-blue-500 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700">
                       {getKeypair()
                         ? getKeypair()?.publicKey.toString()
                         : "No keypair available"}
@@ -201,7 +201,7 @@ export default function WalletPage() {
                         Private Key (keep it safe!)
                       </span>
                     </div>
-                    <p className="text-xs break-all font-mono p-2 text-white bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700">
+                    <p className="text-xs break-all font-mono p-2 text-blue-500 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700">
                       {Pvkey}
                     </p>
                   </div>

@@ -419,7 +419,7 @@ export default function ChainTickets({
                         )}
 
                         {/* Only show distribute button in team mode */}
-                        {mode === "team" && (
+                        {mode === "team" && ticket.account.resellCount > 0 && (
                           <DistributeButton
                             ticket={ticket}
                             royalties={royalties}

@@ -48,7 +48,7 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
   });
 
   const [ticketTypes, setTicketTypes] = useState<TicketTypeInput[]>([
-    { name: "General Admission", price: 50, fees: 10, available: 100 },
+    { name: "General Admission", price: 50, fees: 0, available: 100 },
   ]);
 
   const handleChange = (
@@ -359,7 +359,7 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  {/* <div className="space-y-2">
                     <Label htmlFor={`ticket-fees-${index}`}>Fees ($)</Label>
                     <Input
                       id={`ticket-fees-${index}`}
@@ -372,7 +372,7 @@ export function CreateEventForm({ onSubmit }: CreateEventFormProps) {
                       }
                       required
                     />
-                  </div>
+                  </div> */}
 
                   <div className="space-y-2">
                     <Label htmlFor={`ticket-available-${index}`}>

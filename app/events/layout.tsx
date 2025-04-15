@@ -1,28 +1,30 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useTeamStore } from "@/store/useTeamStore"
-import { useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { useTeamStore } from "@/store/useTeamStore";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { useWalletStore } from "@/store/useWalletStore";
 
 export default function EventsLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
-  const { team } = useTeamStore()
-  const router = useRouter()
+  const { team } = useTeamStore();
+  const { privateKey } = useWalletStore();
+  const router = useRouter();
 
   useEffect(() => {
-    if (!team) {
-      router.push("/")
+    if (!privateKey) {
+      router.push("/");
     }
-  }, [team, router])
+  }, [privateKey, router]);
 
   if (!team) {
-    return null
+    return null;
   }
 
-  return <>{children}</>
+  return <>{children}</>;
 }
